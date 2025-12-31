@@ -1,4 +1,5 @@
 package br.com.matricula.dto;
+
 import jakarta.validation.constraints.NotBlank;
 
 public class DadosAluno {

@@ -21,7 +21,7 @@ public class UsuarioController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    // 1. CRIAR
+    // CRIAR
     @PostMapping
     public ResponseEntity<Object> cadastrar(@RequestBody Usuario dados) {
         if (repository.findByLogin(dados.getLogin()) != null) {
@@ -31,19 +31,19 @@ public class UsuarioController {
         return ResponseEntity.ok(repository.save(dados));
     }
 
-    // 2. LISTAR TODOS (Para a tela de admin)
+    // LISTAR TODOS (Para a tela de admin)
     @GetMapping
     public ResponseEntity<List<Usuario>> listarTodos() {
         return ResponseEntity.ok(repository.findAll());
     }
 
-    // 3. LISTAR PROFESSORES (Para o select box)
+    // LISTAR PROFESSORES (Para o select box)
     @GetMapping("/professores")
     public ResponseEntity<List<Usuario>> listarProfessores() {
         return ResponseEntity.ok(repository.findByTipo(TipoUsuario.PROFESSOR));
     }
 
-    // 4. ATUALIZAR (PUT)
+    // ATUALIZAR (PUT)
     @PutMapping("/{id}")
     public ResponseEntity<Object> atualizar(@PathVariable Long id, @RequestBody Usuario dados) {
         Optional<Usuario> optional = repository.findById(id);
@@ -63,7 +63,7 @@ public class UsuarioController {
         return ResponseEntity.notFound().build();
     }
 
-    // 5. EXCLUIR (DELETE)
+    // EXCLUIR
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> excluir(@PathVariable Long id) {
         if (repository.existsById(id)) {

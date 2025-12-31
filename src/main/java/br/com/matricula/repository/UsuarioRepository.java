@@ -9,7 +9,6 @@ import java.util.List;
 
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
-    // Método já existente para o login
     UserDetails findByLogin(String login);
 
     List<Usuario> findByTipo(TipoUsuario tipo);

@@ -33,32 +33,30 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Usa sua config de CORS
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(req -> {
-                    // 1. Libera LOGIN e CRIAÇÃO DE USUÁRIO (Para você conseguir criar o primeiro admin/prof)
+                    // Libera LOGIN e CRIAÇÃO DE USUÁRIO (Para você conseguir criar o primeiro admin/prof)
                     req.requestMatchers(HttpMethod.POST, "/login").permitAll();
                     req.requestMatchers(HttpMethod.POST, "/usuarios").permitAll();
 
-                    // 2. Libera o SWAGGER (Documentação) se você estiver usando (opcional)
+                    // Libera o SWAGGER (Documentação) se você estiver usando (opcional)
                     req.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
 
-                    // 3. REGRAS EXPLÍCITAS PARA LISTAGEM (GET)
-                    // Isso garante que quem tem token PODE ler essas listas
+                    // REGRAS EXPLÍCITAS PARA LISTAGEM (GET)
                     req.requestMatchers(HttpMethod.GET, "/cursos").authenticated();
                     req.requestMatchers(HttpMethod.GET, "/materias").authenticated();
                     req.requestMatchers(HttpMethod.GET, "/matriculas").authenticated();
                     req.requestMatchers(HttpMethod.GET, "/alunos").authenticated();
                     req.requestMatchers(HttpMethod.GET, "/usuarios/**").authenticated(); // Para buscar lista de professores
 
-                    // 4. Libera requisições de verificação do navegador (Pre-flight)
+                    // Libera requisições de verificação do navegador (Pre-flight)
                     req.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
 
-                    // 5. Todo o resto precisa de autenticação
                     req.anyRequest().authenticated();
                 })
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
-    // --- SUA CONFIGURAÇÃO DE CORS (MANTIDA IGUAL, ESTÁ ÓTIMA) ---
+    // --- CONFIGURAÇÃO DE CORS ---
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();

@@ -22,11 +22,10 @@ public class AutenticacaoController {
     @Autowired
     private TokenService tokenService;
 
-    // REMOVIDO: UsuarioRepository (não é mais necessário aqui)
 
     @PostMapping("/login")
     public ResponseEntity efetuarLogin(@RequestBody @Valid DadosLogin dados) {
-        // Lógica de autenticação padrão
+
         var authenticationtoken = new UsernamePasswordAuthenticationToken(dados.getLogin(), dados.getSenha());
         var authentication = manager.authenticate(authenticationtoken);
 

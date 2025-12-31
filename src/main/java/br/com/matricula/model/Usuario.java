@@ -10,7 +10,7 @@ import java.util.List;
 
 @Table(name = "usuarios")
 @Entity(name = "Usuario")
-@Inheritance(strategy = InheritanceType.JOINED) // Importante para Aluno herdar
+@Inheritance(strategy = InheritanceType.JOINED)
 public class Usuario implements UserDetails {
 
     @Id

@@ -19,8 +19,8 @@ public class Aluno extends Usuario {
 
     // --- CONSTRUTOR VIA DTO ---
     public Aluno(DadosAluno dados) {
-        // Define login e senha padrão ou baseados no DTO (Ajuste conforme regra de negócio)
-        // Aqui estou usando o email como login e CPF como senha inicial
+        // Define login e senha padrão ou baseados no DTO
+        // Login e CPF como senha inicial
         super(dados.getEmail(), dados.getCpf(), dados.getNome(), TipoUsuario.ALUNO);
         this.email = dados.getEmail();
         this.cpf = dados.getCpf();

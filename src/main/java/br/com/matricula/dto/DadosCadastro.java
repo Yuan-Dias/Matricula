@@ -1,4 +1,5 @@
 package br.com.matricula.dto;
+
 import br.com.matricula.model.TipoUsuario;
 
 public class DadosCadastro {

@@ -29,11 +29,11 @@ public class SecurityFilter extends OncePerRequestFilter {
         var token = this.recuperarToken(request);
 
         if (token != null) {
-            // 1. Tenta validar o token e pegar o email (subject)
+            // Tenta validar o token e pegar o email (subject)
             var login = tokenService.getSubject(token);
 
             if (login != null) {
-                // 2. Tenta encontrar o usuário no banco
+                // Tenta encontrar o usuário no banco
                 UserDetails usuario = repository.findByLogin(login);
 
                 // --- PROTEÇÃO CONTRA USUÁRIO NULO ---
