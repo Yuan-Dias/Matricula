@@ -1,0 +1,6 @@
+package br.com.matricula.repository;
+
+import br.com.matricula.model.Curso;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface CursoRepository extends JpaRepository<Curso, Long> {}
