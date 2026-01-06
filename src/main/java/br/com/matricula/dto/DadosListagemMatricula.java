@@ -19,7 +19,7 @@ public class DadosListagemMatricula {
         this.nomeAluno = matricula.getAluno().getNome();
         this.nomeMateria = matricula.getMateria().getNome();
         this.nomeCurso = matricula.getMateria().getCurso().getNome();
-        this.nota = matricula.getNota();
+        this.nota = (matricula.getNota() != null) ? matricula.getNota() : 0.0;        
         this.data = matricula.getDataMatricula();
     }
 

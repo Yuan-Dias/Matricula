@@ -7,9 +7,7 @@ import jakarta.persistence.Table;
 @Entity(name = "Aluno")
 @Table(name = "alunos")
 public class Aluno extends Usuario {
-
-    // ID vem de Usuario
-    // Nome vem de Usuario
+    
     private String email;
     private String cpf;
 

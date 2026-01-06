@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,15 +23,23 @@ public class AutenticacaoController {
     @Autowired
     private TokenService tokenService;
 
-
     @PostMapping("/login")
-    public ResponseEntity efetuarLogin(@RequestBody @Valid DadosLogin dados) {
+    public ResponseEntity <Object> efetuarLogin(@RequestBody @Valid DadosLogin dados) {
+        UsernamePasswordAuthenticationToken authenticationToken = 
+            new UsernamePasswordAuthenticationToken(dados.getLogin(), dados.getSenha());
 
-        var authenticationtoken = new UsernamePasswordAuthenticationToken(dados.getLogin(), dados.getSenha());
-        var authentication = manager.authenticate(authenticationtoken);
+        Authentication authentication = manager.authenticate(authenticationToken);
 
-        var tokenJWT = tokenService.gerarToken((Usuario) authentication.getPrincipal());
+        Usuario usuarioLogado = (Usuario) authentication.getPrincipal();
 
-        return ResponseEntity.ok(new DadosTokenJWT(tokenJWT));
+        String tokenJWT = tokenService.gerarToken(usuarioLogado);
+
+        DadosTokenJWT resposta = new DadosTokenJWT(
+            tokenJWT, 
+            usuarioLogado.getLogin(), 
+            usuarioLogado.getTipo()
+        );
+
+        return ResponseEntity.ok(resposta);
     }
 }
