@@ -22,12 +22,17 @@ public class Matricula {
 
     private LocalDateTime dataMatricula = LocalDateTime.now();
 
+    @ManyToOne
+    @JoinColumn(name = "matricula_curso_id")
+    private MatriculaCurso matriculaCurso;
+
     public Matricula() {
     }
 
-    public Matricula(Aluno aluno, Materia materia) {
+    public Matricula(Aluno aluno, Materia materia, MatriculaCurso matriculaCurso) {
         this.aluno = aluno;
         this.materia = materia;
+        this.matriculaCurso = matriculaCurso;
     }
 
     // --- GETTERS E SETTERS ---
@@ -41,4 +46,6 @@ public class Matricula {
     public void setNota(Double nota) {this.nota = nota;}
     public LocalDateTime getDataMatricula() {return dataMatricula;}
     public void setDataMatricula(LocalDateTime dataMatricula) {this.dataMatricula = dataMatricula;}
+    public MatriculaCurso getMatriculaCurso() {return matriculaCurso;}
+    public void setMatriculaCurso(MatriculaCurso matriculaCurso) {this.matriculaCurso = matriculaCurso;}
 }

@@ -25,7 +25,6 @@ public class SecurityConfig {
 
     @Autowired
     private SecurityFilter securityFilter;
-
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
@@ -33,31 +32,33 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(req -> {
-                    // Rotas Públicas
+                    // --- ROTAS PÚBLICAS ---
                     req.requestMatchers(HttpMethod.POST, "/login").permitAll();
-                    req.requestMatchers(HttpMethod.POST, "/usuarios").permitAll(); // Cria Admin/Prof
                     req.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
                     
-                    // Rotas de Criação (Admin) 
-                    req.requestMatchers(HttpMethod.POST, "/alunos").hasRole("ADMIN"); 
-                    // OBS: Se der erro, troque .hasRole("ADMIN") por .authenticated()
+                    // --- USUÁRIOS ---
+                    // Permitimos o GET para verificar existência e o POST para o primeiro cadastro
+                    req.requestMatchers(HttpMethod.GET, "/usuarios").permitAll();
+                    req.requestMatchers(HttpMethod.POST, "/usuarios").permitAll(); 
                     
-                    req.requestMatchers(HttpMethod.POST, "/cursos").hasRole("ADMIN");
-                    req.requestMatchers(HttpMethod.POST, "/materias").hasRole("ADMIN");
-                    req.requestMatchers(HttpMethod.POST, "/matriculas").hasRole("ALUNO");
+                    // Se você já está logado como INSTITUICAO, você deve ter poder total sobre /usuarios
+                    req.requestMatchers(HttpMethod.DELETE, "/usuarios/**").hasRole("INSTITUICAO");
+                    req.requestMatchers(HttpMethod.PUT, "/usuarios/**").authenticated();
 
-                    // Rotas de Leitura
-                    req.requestMatchers(HttpMethod.GET, "/cursos").authenticated();
-                    req.requestMatchers(HttpMethod.GET, "/materias").authenticated();
-                    req.requestMatchers(HttpMethod.GET, "/matriculas").authenticated();
-                    req.requestMatchers(HttpMethod.GET, "/alunos").authenticated();
-                    req.requestMatchers(HttpMethod.GET, "/usuarios/**").authenticated();
-                    
+                    // --- RECURSOS DA INSTITUIÇÃO ---
+                    req.requestMatchers(HttpMethod.POST, "/alunos/**").hasRole("INSTITUICAO");
+                    req.requestMatchers(HttpMethod.POST, "/cursos/**").hasRole("INSTITUICAO");
+                    req.requestMatchers(HttpMethod.POST, "/materias/**").hasRole("INSTITUICAO");
+
+                    // --- RECURSOS DO ALUNO ---
+                    req.requestMatchers(HttpMethod.POST, "/matriculas/**").hasRole("ALUNO");
+
+                    // --- QUALQUER USUÁRIO LOGADO ---
                     req.anyRequest().authenticated();
                 })
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
-    }
+    }   
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {

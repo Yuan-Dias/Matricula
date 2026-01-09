@@ -1,15 +1,15 @@
 package br.com.matricula.config;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import br.com.matricula.repository.UsuarioRepository;
 import br.com.matricula.service.TokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -22,31 +22,26 @@ public class SecurityFilter extends OncePerRequestFilter {
     @Autowired
     private TokenService tokenService;
 
-    @Autowired
-    private UsuarioRepository repository;
-
     @Override
     protected void doFilterInternal(@SuppressWarnings("null") HttpServletRequest request, @SuppressWarnings("null") HttpServletResponse response, @SuppressWarnings("null") FilterChain filterChain) throws ServletException, IOException {
         var token = this.recuperarToken(request);
 
         if (token != null) {
-            // Tenta validar o token e pegar o email (subject)
-            var login = tokenService.getSubject(token);
+            try {
+                var login = tokenService.getSubject(token);
+                
+                var role = tokenService.getClaim(token, "role"); 
 
-            if (login != null) {
-                // Tenta encontrar o usuário no banco
-                UserDetails usuario = repository.findByLogin(login);
-
-                // --- PROTEÇÃO CONTRA USUÁRIO NULO ---
-                if (usuario != null) {
-                    var authentication = new UsernamePasswordAuthenticationToken(usuario, null, usuario.getAuthorities());
+                if (login != null && role != null) {
+                    var authorities = Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role));
+                    
+                    var authentication = new UsernamePasswordAuthenticationToken(login, null, authorities);
                     SecurityContextHolder.getContext().setAuthentication(authentication);
-                    System.out.println("LOG: Usuario autenticado com sucesso: " + login);
-                } else {
-                    System.out.println("LOG: Token válido, mas usuario não achado no banco (DB reiniciado?): " + login);
+                    
+                    System.out.println("LOG: Usuario autenticado via Token: " + login + " | Role: " + role);
                 }
-            } else {
-                System.out.println("LOG: Token inválido ou expirado.");
+            } catch (Exception e) {
+                System.out.println("LOG: Erro ao validar token: " + e.getMessage());
             }
         }
 

@@ -1,23 +1,13 @@
 package br.com.matricula.controller;
 
 import java.util.List;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
+import org.springframework.web.bind.annotation.*;
 import br.com.matricula.dto.DadosCurso;
-import br.com.matricula.model.Curso;
-import br.com.matricula.repository.CursoRepository;
-import br.com.matricula.repository.UsuarioRepository;
+import br.com.matricula.dto.DadosListagemCurso;
+import br.com.matricula.service.CursoService;
 import jakarta.validation.Valid;
 
 @RestController
@@ -25,71 +15,61 @@ import jakarta.validation.Valid;
 public class CursoController {
 
     @Autowired
-    private CursoRepository repository;
+    private CursoService service;
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
-
-    // CADASTRAR
+    /**
+     * CADASTRO DE CURSO (Função Específica da Instituição)
+     * Bloqueia o acesso de Alunos e Professores através do PreAuthorize.
+     */
     @PostMapping
     @PreAuthorize("hasAuthority('INSTITUICAO')")
-    public ResponseEntity <Object> cadastrar(@RequestBody @Valid DadosCurso dados) {
-
-        @SuppressWarnings("null")
-        var professor = usuarioRepository.findById(dados.getIdProfessor());
-
-        if (professor.isEmpty()) {
-            return ResponseEntity.badRequest().body("Professor informado não existe (ID inválido)");
+    public ResponseEntity<Object> cadastrar(@RequestBody @Valid DadosCurso dados) {
+        try {
+            service.cadastrar(dados);
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            // Retorna o erro vindo da Service (ex: Professor não encontrado ou tipo inválido)
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-
-        var curso = new Curso(dados, professor.get());
-
-        repository.save(curso);
-        return ResponseEntity.ok().build();
     }
 
-    // LISTAR TODOS
+    /**
+     * LISTAGEM GERAL
+     * Retorna todos os cursos usando DadosListagemCurso para evitar 
+     * erros de recursão (loop infinito) no JSON.
+     */
     @GetMapping
-    public List<Curso> listar() {
-        return repository.findAll();
+    public List<DadosListagemCurso> listar() {
+        return service.listarTodos();
     }
 
-    // ATUALIZAR
+    /**
+     * ATUALIZAÇÃO DE CURSO
+     * Permite à Instituição alterar dados do curso e o professor responsável.
+     */
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('INSTITUICAO')")
     public ResponseEntity<Object> atualizar(@PathVariable Long id, @RequestBody @Valid DadosCurso dados) {
-        @SuppressWarnings("null")
-        var cursoOptional = repository.findById(id);
-        if (cursoOptional.isEmpty()) {
-            return ResponseEntity.notFound().build();
+        try {
+            return ResponseEntity.ok(service.atualizar(id, dados));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-        
-        var curso = cursoOptional.get();
-        @SuppressWarnings("null")
-        var professor = usuarioRepository.findById(dados.getIdProfessor());
-        
-        if (professor.isEmpty()) {
-            return ResponseEntity.badRequest().body("Professor inválido");
-        }
-
-        curso.setNome(dados.getNome());
-        curso.setDescricao(dados.getDescricao());
-        curso.setCargaHoraria(dados.getCargaHoraria());
-        curso.setProfessor(professor.get());
-
-        repository.save(curso);
-        return ResponseEntity.ok(curso);
     }
 
-    // EXCLUIR
-    @SuppressWarnings("null")
+    /**
+     * EXCLUSÃO DE CURSO
+     * Remove o curso do sistema. Note que as matérias vinculadas 
+     * devem ser tratadas (geralmente via cascade no banco ou lógica na Service).
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('INSTITUICAO')")
     public ResponseEntity<Object> excluir(@PathVariable Long id) {
-        if (repository.existsById(id)) {
-            repository.deleteById(id);
+        try {
+            service.excluir(id);
             return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.notFound().build();
     }
 }

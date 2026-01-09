@@ -1,24 +1,13 @@
 package br.com.matricula.controller;
 
 import java.util.List;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
+import org.springframework.web.bind.annotation.*;
 import br.com.matricula.dto.DadosAluno;
 import br.com.matricula.model.Aluno;
-import br.com.matricula.repository.AlunoRepository;
-import br.com.matricula.repository.UsuarioRepository;
+import br.com.matricula.service.AlunoService;
 import jakarta.validation.Valid;
 
 @RestController
@@ -26,63 +15,57 @@ import jakarta.validation.Valid;
 public class AlunoController {
 
     @Autowired
-    private AlunoRepository repository;
+    private AlunoService service;
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder; 
-
-    // CADASTRAR
+    /**
+     * CADASTRO DE ALUNO
+     * Retorna 201 Created em caso de sucesso ou 400 Bad Request se houver erro de negócio (ex: e-mail duplicado).
+     */
     @PostMapping
     public ResponseEntity<Object> cadastrar(@RequestBody @Valid DadosAluno dados) {
-        String emailPadrao = dados.getEmail().trim().toLowerCase();
-
-        if (usuarioRepository.findByLogin(emailPadrao) != null) {
-            return ResponseEntity.badRequest().body("Erro: Este e-mail já está cadastrado no sistema.");
+        try {
+            service.cadastrar(dados);
+            return ResponseEntity.status(HttpStatus.CREATED).body("Aluno cadastrado com sucesso!");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-
-        Aluno aluno = new Aluno(dados);
-        aluno.setEmail(emailPadrao);
-        
-        aluno.setCpf(dados.getCpf().replaceAll("\\D", ""));
-        
-        aluno.setSenha(passwordEncoder.encode(aluno.getSenha())); 
-
-        repository.save(aluno); 
-
-        return ResponseEntity.status(HttpStatus.CREATED).body("Aluno cadastrado com sucesso!");
     }
 
-    // LISTAR TODOS
+    /**
+     * LISTAGEM GERAL
+     * Retorna a lista completa de alunos cadastrados.
+     */
     @GetMapping
     public ResponseEntity<List<Aluno>> listar() {
-        List<Aluno> lista = repository.findAll();
-        return ResponseEntity.ok(lista);
+        return ResponseEntity.ok(service.listar());
     }
 
-    // ATUALIZAR
-    @SuppressWarnings("null")
+    /**
+     * ATUALIZAÇÃO DE ALUNO
+     * Recebe o ID via URL e os novos dados via JSON.
+     * Retorna 404 se o ID não existir ou 200 se a atualização for bem-sucedida.
+     */
     @PutMapping("/{id}")
-    public ResponseEntity<Aluno> atualizar(@PathVariable Long id, @RequestBody @Valid DadosAluno dados) {
-        return repository.findById(id).map(aluno -> {
-            aluno.setNome(dados.getNome());
-            aluno.setEmail(dados.getEmail());
-            aluno.setCpf(dados.getCpf());
-            repository.save(aluno);
-            return ResponseEntity.ok(aluno);
-        }).orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<Object> atualizar(@PathVariable Long id, @RequestBody @Valid DadosAluno dados) {
+        try {
+            return ResponseEntity.ok(service.atualizar(id, dados));
+        } catch (RuntimeException e) {
+            // Caso a Service lance erro de "não encontrado" ou e-mail já em uso
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        }
     }
 
-    // EXCLUIR
-    @SuppressWarnings("null")
+    /**
+     * EXCLUSÃO DE ALUNO
+     * Retorna 204 No Content se excluído com sucesso ou 404 se o aluno não existir.
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Object> excluir(@PathVariable Long id) {
-        if (repository.existsById(id)) {
-            repository.deleteById(id);
+        try {
+            service.excluir(id);
             return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.notFound().build();
     }
 }

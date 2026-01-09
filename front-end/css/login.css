@@ -1,0 +1,62 @@
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background-color: #f0f2f5;
+    margin: 0;
+    /* Alterado para auto para evitar cortar o conteúdo em telas pequenas */
+    overflow-y: auto; 
+}
+
+.login-wrapper {
+    min-height: 100vh; /* Garante altura mínima */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    padding: 20px;
+}
+
+.login-box {
+    width: 100%;
+    max-width: 400px;
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    position: relative;
+}
+
+.form-control:focus {
+    border-color: #2a5298;
+    box-shadow: 0 0 0 0.2rem rgba(42, 82, 152, 0.25);
+}
+
+.form-floating label { color: #6c757d; }
+
+.transition-btn { transition: all 0.3s ease; }
+.transition-btn:hover { transform: translateY(-1px); }
+
+.fade-in { animation: fadeIn 0.5s ease-in-out; }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Divisor de seção */
+.login-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin-top: 25px;
+    color: #adb5bd;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.login-divider::before, .login-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #e9ecef;
+}
+.login-divider:not(:empty)::before { margin-right: .5em; }
+.login-divider:not(:empty)::after { margin-left: .5em; }

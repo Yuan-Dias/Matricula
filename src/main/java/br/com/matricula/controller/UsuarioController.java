@@ -1,117 +1,76 @@
 package br.com.matricula.controller;
 
 import java.util.List;
-import java.util.Optional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
+import org.springframework.web.bind.annotation.*;
 import br.com.matricula.dto.DadosCadastro;
-import br.com.matricula.model.TipoUsuario;
-import br.com.matricula.model.Usuario;
-import br.com.matricula.repository.UsuarioRepository;
+import br.com.matricula.model.*;
+import br.com.matricula.service.*;
 
 @RestController
 @RequestMapping("/usuarios")
 public class UsuarioController {
 
     @Autowired
-    private UsuarioRepository repository;
+    private UsuarioService service;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    // CADASTRAR
+    /**
+     * CADASTRO GERAL
+     * Recebe os dados de qualquer tipo de usuário.
+     */
     @PostMapping
     public ResponseEntity<Object> cadastrar(@RequestBody DadosCadastro dados) {
-        String loginLimpo = dados.getLogin().trim().toLowerCase();
-        
-        boolean sistemaVazio = repository.count() == 0;
-
-        // Regra do Primeiro Acesso
-        if (sistemaVazio && dados.getTipo() != TipoUsuario.INSTITUICAO) {
-            return ResponseEntity.badRequest().body("O primeiro usuário do sistema deve ser do tipo INSTITUICAO.");
+        try {
+            service.cadastrar(dados);
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-
-        // Regra de bloqueio para não-admin
-        if (!sistemaVazio) {
-            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-            
-            if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
-                return ResponseEntity.status(401).body("Erro: Login de Instituição necessário.");
-            }
-
-            boolean isInstituicao = auth.getAuthorities().stream()
-                    .anyMatch(a -> a.getAuthority().equals("INSTITUICAO"));
-
-            if (!isInstituicao) {
-                return ResponseEntity.status(403).body("Erro: Apenas a Instituição pode cadastrar usuários.");
-            }
-        }
-
-        if (repository.findByLogin(loginLimpo) != null) {
-            return ResponseEntity.badRequest().body("Erro: Login já em uso.");
-        }
-        
-        Usuario novoUsuario = new Usuario();
-        novoUsuario.setLogin(loginLimpo);
-        novoUsuario.setNome(dados.getNome().trim());
-        novoUsuario.setTipo(dados.getTipo());
-        novoUsuario.setSenha(passwordEncoder.encode(dados.getSenha()));
-        
-        repository.save(novoUsuario);
-        return ResponseEntity.ok().build();
     }
 
-    // LISTAR TODOS
+    /**
+     * LISTAGEM GENÉRICA
+     * Retorna a lista completa de usuários do sistema.
+     */
     @GetMapping
     public ResponseEntity<List<Usuario>> listarTodos() {
-        return ResponseEntity.ok(repository.findAll());
+        return ResponseEntity.ok(service.listarTodos());
     }
 
-    // LISTAR POR TIPO
+    /**
+     * LISTAGEM ESPECÍFICA
+     * Filtra os usuários por tipo (Ex: /usuarios/tipo/PROFESSOR).
+     */
     @GetMapping("/tipo/{tipo}")
     public ResponseEntity<List<Usuario>> listarPorTipo(@PathVariable TipoUsuario tipo) {
-        return ResponseEntity.ok(repository.findByTipo(tipo));
+        return ResponseEntity.ok(service.listarPorTipo(tipo));
     }
 
-    // ATUALIZAR
+    /**
+     * ATUALIZAÇÃO
+     * Atualiza dados básicos, login ou senha.
+     */
     @PutMapping("/{id}")
-    @SuppressWarnings("null")
-    public ResponseEntity <Object> atualizar(@PathVariable Long id, @RequestBody Usuario dados) {
-        Optional<Usuario> optional = repository.findById(id);
-        if (optional.isPresent()) {
-            Usuario user = optional.get();
-            user.setNome(dados.getNome().trim());
-            user.setLogin(dados.getLogin().trim().toLowerCase());
-
-            if (dados.getSenha() != null && !dados.getSenha().isBlank()) {
-                user.setSenha(passwordEncoder.encode(dados.getSenha()));
-            }
-
-            repository.save(user);
-            return ResponseEntity.ok(user);
+    public ResponseEntity<Object> atualizar(@PathVariable Long id, @RequestBody DadosCadastro dados) {
+        try {
+            return ResponseEntity.ok(service.atualizar(id, dados));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.notFound().build();
     }
 
-    // EXCLUIR
+    /**
+     * EXCLUSÃO
+     * Remove o acesso do usuário ao sistema.
+     */
     @DeleteMapping("/{id}")
-    @SuppressWarnings("null")
     public ResponseEntity<Void> excluir(@PathVariable Long id) {
-        if (repository.existsById(id)) {
-            repository.deleteById(id);
+        try {
+            service.excluir(id);
             return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.notFound().build();
     }
 }

@@ -16,37 +16,52 @@ import java.time.ZoneOffset;
 public class TokenService {
 
     @Value("${api.security.token.secret}")
-    private String secret; // Pega aquela senha secreta do application.properties
+    private String secret;
 
-    // Gera o Token
+    // Gera o Token com a Role (Tipo de Usuário)
     public String gerarToken(Usuario usuario) {
         try {
             var algoritmo = Algorithm.HMAC256(secret);
             return JWT.create()
-                    .withIssuer("API Matriculas") // Quem emitiu
-                    .withSubject(usuario.getLogin()) // Dono do token
-                    .withExpiresAt(dataExpiracao()) // Validade
-                    .sign(algoritmo); // Assina
+                    .withIssuer("API Matriculas")
+                    .withSubject(usuario.getLogin())
+                    // --- MUDANÇA AQUI: GRAVA O TIPO NO TOKEN ---
+                    .withClaim("role", usuario.getTipo().toString()) 
+                    .withExpiresAt(dataExpiracao())
+                    .sign(algoritmo);
         } catch (JWTCreationException exception){
             throw new RuntimeException("Erro ao gerar token jwt", exception);
         }
     }
 
-    // Lê o Token e devolve o Login do usuário (se for válido)
+    // Lê o Login do usuário
     public String getSubject(String tokenJWT) {
         try {
             var algoritmo = Algorithm.HMAC256(secret);
             return JWT.require(algoritmo)
                     .withIssuer("API Matriculas")
                     .build()
-                    .verify(tokenJWT) // Verifica se é válido
-                    .getSubject(); // Pega o login que tá dentro
+                    .verify(tokenJWT)
+                    .getSubject();
         } catch (JWTVerificationException exception){
             throw new RuntimeException("Token JWT inválido ou expirado!");
         }
     }
 
-    // Define que o token vale por 2 horas (fuso horário do Brasil -03:00)
+    public String getClaim(String tokenJWT, String claimName) {
+        try {
+            var algoritmo = Algorithm.HMAC256(secret);
+            return JWT.require(algoritmo)
+                    .withIssuer("API Matriculas")
+                    .build()
+                    .verify(tokenJWT)
+                    .getClaim(claimName)
+                    .asString();
+        } catch (JWTVerificationException exception){
+            throw new RuntimeException("Erro ao ler claim do token");
+        }
+    }
+
     private Instant dataExpiracao() {
         return LocalDateTime.now().plusHours(2).toInstant(ZoneOffset.of("-03:00"));
     }

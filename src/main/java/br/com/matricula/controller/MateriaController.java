@@ -1,24 +1,13 @@
 package br.com.matricula.controller;
 
 import java.util.List;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
+import org.springframework.web.bind.annotation.*;
 import br.com.matricula.dto.DadosCadastroMateria;
-import br.com.matricula.model.Materia;
-import br.com.matricula.repository.CursoRepository;
-import br.com.matricula.repository.MateriaRepository;
-import br.com.matricula.repository.UsuarioRepository;
+import br.com.matricula.dto.DadosListagemMateria;
+import br.com.matricula.service.MateriaService;
 import jakarta.validation.Valid;
 
 @RestController
@@ -26,78 +15,52 @@ import jakarta.validation.Valid;
 public class MateriaController {
 
     @Autowired
-    private MateriaRepository materiaRepository;
+    private MateriaService service;
 
-    @Autowired
-    private CursoRepository cursoRepository;
-
-    @Autowired
-    private UsuarioRepository usuarioRepository;
-
-    // CADASTRAR MATÉRIA
+    // CADASTRAR (Geral/Admin)
     @PostMapping
     @PreAuthorize("hasAuthority('INSTITUICAO')")
-    public ResponseEntity <Object> cadastrar(@RequestBody @Valid DadosCadastroMateria dados) {
-
-        @SuppressWarnings("null")
-        var curso = cursoRepository.findById(dados.getIdCurso());
-        @SuppressWarnings("null")
-        var professor = usuarioRepository.findById(dados.getIdProfessor());
-
-        if (curso.isEmpty() || professor.isEmpty()) {
-            return ResponseEntity.badRequest().body("Curso ou Professor inválidos");
+    public ResponseEntity<Object> cadastrar(@RequestBody @Valid DadosCadastroMateria dados) {
+        try {
+            service.cadastrar(dados);
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-
-        var materia = new Materia(
-                dados.getNome(),
-                dados.getDescricao(),
-                curso.get(),
-                professor.get()
-        );
-
-        materiaRepository.save(materia);
-
-        return ResponseEntity.ok().body("Matéria criada e professor vinculado!");
     }
 
-    // LISTAR TODAS AS MATÉRIAS
+    // LISTAGEM GENÉRICA (Todos os usuários)
     @GetMapping
-    public List<Materia> listar() {
-        return materiaRepository.findAll();
+    public List<DadosListagemMateria> listar() {
+        return service.listarTodas();
     }
 
-    // Listar matérias de um curso específico
+    // LISTAGEM ESPECÍFICA (Filtro por Curso)
     @GetMapping("/curso/{idCurso}")
-    public ResponseEntity<List<Materia>> listarPorCurso(@PathVariable Long idCurso) {
-        return ResponseEntity.ok(materiaRepository.findByCursoId(idCurso));
+    public ResponseEntity<List<DadosListagemMateria>> listarPorCurso(@PathVariable Long idCurso) {
+        return ResponseEntity.ok(service.listarPorCurso(idCurso));
     }
 
-    // ATUALIZAR MATÉRIA
+    // ATUALIZAR (Admin)
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('INSTITUICAO')")
     public ResponseEntity<Object> atualizar(@PathVariable Long id, @RequestBody @Valid DadosCadastroMateria dados) {
-        @SuppressWarnings("null")
-        var opMateria = materiaRepository.findById(id);
-        if (opMateria.isEmpty()) return ResponseEntity.notFound().build();
-
-        var materia = opMateria.get();
-        materia.setNome(dados.getNome());
-        materia.setDescricao(dados.getDescricao());
-        
-        // Opcional: atualizar curso ou professor se os IDs vierem no DTO
-        materiaRepository.save(materia);
-        return ResponseEntity.ok(materia);
+        try {
+            return ResponseEntity.ok(service.atualizar(id, dados));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
-    // EXCLUIR MATÉRIA (Vai apagar as matrículas em cascata)
-    @SuppressWarnings("null")
+    // EXCLUIR (Admin)
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('INSTITUICAO')")
     public ResponseEntity<Object> excluir(@PathVariable Long id) {
-        if (materiaRepository.existsById(id)) {
-            materiaRepository.deleteById(id);
+        try {
+            service.excluir(id);
             return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.notFound().build();
     }
 }
