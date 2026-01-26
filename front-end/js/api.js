@@ -35,10 +35,13 @@ function getUser() {
 function logout() {
     localStorage.removeItem("sga_token");
     localStorage.removeItem("sga_user");
-    // Verifica se já não está na página de login para evitar loop
-    if (!window.location.pathname.includes("login.html")) {
-        window.location.href = "pages/login.html"; // Ajuste o caminho conforme sua pasta
-    }
+    sessionStorage.clear();
+
+    const loginPath = window.location.origin + "/pages/login.html";
+
+    if (window.location.pathname.includes("login.html")) return;
+
+    window.location.replace("pages/login.html?expired=true");
 }
 
 // ==================================================================================

@@ -1,24 +1,27 @@
 package br.com.matricula.service;
 
-import br.com.matricula.dto.DadosCadastro;
-import br.com.matricula.model.TipoUsuario;
-import br.com.matricula.model.Usuario;
-import br.com.matricula.repository.UsuarioRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import java.util.List;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import br.com.matricula.dto.DadosCadastro;
+import br.com.matricula.dto.DadosListagemUsuario;
+import br.com.matricula.model.TipoUsuario;
+import br.com.matricula.model.Usuario;
+import br.com.matricula.repository.UsuarioRepository;
 
 @Service
 public class UsuarioService {
 
-    @Autowired
-    private UsuarioRepository repository;
+    private final UsuarioRepository repository;
+    private final PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    public UsuarioService(UsuarioRepository repository, PasswordEncoder passwordEncoder) {
+        this.repository = repository;
+        this.passwordEncoder = passwordEncoder;
+    }
 
     /**
      * CADASTRO GERAL
@@ -55,17 +58,15 @@ public class UsuarioService {
     /**
      * LISTAGEM GERAL
      */
-    public List<Usuario> listarTodos() {
-        return repository.findAll();
+    public List<DadosListagemUsuario> listarTodos() {
+        return repository.findAllAsDto();
     }
-
     /**
      * LISTAGEM ESPECÍFICA (Por tipo: PROFESSOR, ALUNO ou INSTITUICAO)
      */
-    public List<Usuario> listarPorTipo(TipoUsuario tipo) {
-        return repository.findByTipo(tipo);
+    public List<DadosListagemUsuario> listarPorTipo(TipoUsuario tipo) {
+        return repository.findByTipoAsDto(tipo);
     }
-
     /**
      * ATUALIZAÇÃO GERAL
      * Permite atualizar nome, login (com validação) e senha (com nova criptografia).

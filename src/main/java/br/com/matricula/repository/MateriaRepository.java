@@ -9,4 +9,5 @@ import br.com.matricula.model.Materia;
 public interface MateriaRepository extends JpaRepository<Materia, Long> {
     List<Materia> findByCursoId(Long idCurso);
     List<Materia> findByCursoIdAndProfessorLogin(Long idCurso, String login);
+    List<Materia> findByProfessorId(Long idProfessor);
 }

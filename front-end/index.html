@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal SGA | Dashboard</title>
+
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
@@ -49,7 +51,7 @@
                 </div>
             </nav>
 
-            <div class="container-fluid px-4 py-4" id="app-content">
+            <div class="container-fluid px-4 py-4" id="appContent">
                 <div class="text-center mt-5">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Carregando...</span>
@@ -66,33 +68,37 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="formUsuario">
+                    <form id="formUsuario" novalidate>
                         <input type="hidden" id="usuarioId">
                         
                         <div class="mb-3">
                             <label class="form-label">Nome Completo</label>
                             <input type="text" class="form-control" id="usuarioNome" required>
+                            <div class="invalid-feedback">O nome é obrigatório.</div>
                         </div>
                         
                         <div class="mb-3">
                             <label class="form-label">Login / Email</label>
                             <input type="email" class="form-control" id="usuarioLogin" required>
+                            <div class="invalid-feedback">Informe um e-mail válido.</div>
                         </div>
                         
                         <div class="mb-3">
                             <label class="form-label">Senha</label>
                             <input type="password" class="form-control" id="usuarioSenha">
                             <div class="form-text">Deixe em branco se for apenas editar.</div>
+                            <div class="invalid-feedback">Senha é obrigatória para novos usuários.</div>
                         </div>
 
                         <div class="mb-3 d-none" id="divCpf">
                             <label class="form-label">CPF (Obrigatório para Alunos)</label>
                             <input type="text" class="form-control" id="usuarioCpf" placeholder="000.000.000-00">
+                            <div class="invalid-feedback">CPF é obrigatório para alunos.</div>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Tipo de Perfil</label>
-                            <select id="usuarioTipo" class="form-select" onchange="instToggleCpf()">
+                            <select id="usuarioTipo" class="form-select" onchange="instToggleCpf()" required>
                                 <option value="ALUNO">Discente (Aluno)</option>
                                 <option value="PROFESSOR">Docente (Professor)</option>
                                 <option value="INSTITUICAO">Instituição (Administrador)</option>
@@ -116,29 +122,37 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="formCurso">
-                        <input type="hidden" id="cursoId">
+                    <form id="formCurso" novalidate> <input type="hidden" id="cursoId">
+                        
                         <div class="mb-3">
                             <label class="form-label">Nome do Curso</label>
                             <input type="text" class="form-control" id="cursoNome" required>
+                            <div class="invalid-feedback">Por favor, informe o nome do curso.</div>
                         </div>
+                        
                         <div class="mb-3">
                             <label class="form-label">Descrição</label>
                             <textarea class="form-control" id="cursoDescricao" rows="3"></textarea>
                         </div>
+                        
                         <div class="mb-3">
                             <label class="form-label">Carga Horária (horas)</label>
-                            <input type="number" id="cursoCargaHoraria" class="form-control" required>
+                            <input type="number" id="cursoCargaHoraria" class="form-control" required min="1">
+                            <div class="invalid-feedback">Informe uma carga horária válida.</div>
                         </div>
+                        
                         <div class="mb-3">
                             <label class="form-label">Capacidade de Alunos</label>
-                            <input type="number" id="cursoCapacidade" class="form-control" required>
+                            <input type="number" id="cursoCapacidade" class="form-control" required min="1">
+                            <div class="invalid-feedback">Informe a capacidade da turma.</div>
                         </div>
+                        
                         <div class="mb-3">
                             <label class="form-label">Professor Responsável</label>
                             <select id="cursoProfessorId" class="form-select" required>
                                 <option value="">Carregando professores...</option>
                             </select>
+                            <div class="invalid-feedback">Selecione um professor responsável.</div>
                         </div>
                     </form>
                 </div>
@@ -151,38 +165,63 @@
     </div>
 
     <div class="modal fade" id="modalMateria" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
+        <div class="modal-dialog modal-lg"> <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="modalMateriaTitle">Gerenciar Matéria</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="formMateria">
+                    <form id="formMateria" novalidate>
                         <input type="hidden" id="materiaId">
-                        <div class="mb-3">
-                            <label class="form-label">Nome da Matéria</label>
-                            <input type="text" class="form-control" id="materiaNome" required>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Nome da Matéria</label>
+                                <input type="text" class="form-control" id="materiaNome" required>
+                                <div class="invalid-feedback">Informe o nome da matéria.</div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Pertence ao Curso:</label>
+                                <select class="form-select" id="materiaCursoSelect" required>
+                                    <option value="" selected disabled>Selecione...</option>
+                                </select>
+                                <div class="invalid-feedback">Selecione a qual curso esta matéria pertence.</div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Professor Responsável:</label>
+                                <select class="form-select" id="materiaProfSelect">
+                                    <option value="" selected>Sem professor no momento</option>
+                                </select>
+                            </div>
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">Pertence ao Curso:</label>
-                            <select class="form-select" id="materiaCursoSelect" required>
-                                <option value="" selected disabled>Selecione...</option>
-                                </select>
+                            <label class="form-label">Descrição</label>
+                            <textarea id="materiaDescricao" class="form-control" rows="2" placeholder="Descreva o conteúdo..." required></textarea>
+                            <div class="invalid-feedback">A descrição é obrigatória.</div>
                         </div>
 
+                        <hr class="my-4">
                         <div class="mb-3">
-                            <label class="form-label">Professor Responsável:</label>
-                            <select class="form-select" id="materiaProfSelect">
-                                <option value="" selected>Sem professor no momento</option>
-                                </select>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label fw-bold mb-0">Configuração de Notas / Pesos</label>
+                                <button type="button" class="btn btn-sm btn-outline-success" onclick="instAdicionarLinhaNota()">
+                                    <i class="fas fa-plus me-1"></i> Adicionar Nota
+                                </button>
+                            </div>
+                            
+                            <div class="alert alert-info py-2 small">
+                                <i class="fas fa-info-circle me-1"></i> Defina as avaliações (Ex: Prova 1 peso 4).
+                            </div>
+                            
+                            <div id="containerNotasConfig" class="d-flex flex-column gap-2">
+                                </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Descrição</label>
-                            <textarea id="materiaDescricao" class="form-control" placeholder="Descreva o conteúdo da disciplina" required></textarea>
-                        </div>
-                    </form>
+                        </form>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
@@ -214,9 +253,9 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script src="js/api.js"></script>
-    <script src="js/views/instituicao.js"></script>
-    <script src="js/views/professor.js"></script>
-    <script src="js/views/aluno.js"></script>
-    <script src="js/dashboard.js"></script>
+    <script src="js/views/instituicao.js" defer></script>
+    <script src="js/views/professor.js" defer></script>
+    <script src="js/views/aluno.js" defer></script>
+    <script src="js/dashboard.js" defer></script>
 </body>
 </html>

@@ -25,6 +25,7 @@ public class SecurityConfig {
 
     @Autowired
     private SecurityFilter securityFilter;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
@@ -32,28 +33,56 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(req -> {
-                    // --- ROTAS PÚBLICAS ---
-                    req.requestMatchers(HttpMethod.POST, "/login").permitAll();
+
+                    // ====================================================
+                    // 1. ROTAS PÚBLICAS
+                    // ====================================================
+                    req.requestMatchers("/error").permitAll();
+                    req.requestMatchers(HttpMethod.POST, "/login", "/auth/login").permitAll();
                     req.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
-                    
-                    // --- USUÁRIOS ---
-                    // Permitimos o GET para verificar existência e o POST para o primeiro cadastro
-                    req.requestMatchers(HttpMethod.GET, "/usuarios").permitAll();
                     req.requestMatchers(HttpMethod.POST, "/usuarios").permitAll(); 
+
+                    // ====================================================
+                    // 2. REGRAS ESPECÍFICAS (Exceções vêm antes das regras gerais)
+                    // ====================================================
+                    req.requestMatchers(HttpMethod.PUT, "/materias/*/avaliacoes").hasAuthority("PROFESSOR");
+                    req.requestMatchers(HttpMethod.GET, "/materias/*/avaliacoes").authenticated(); // Professor e Aluno leem
+
+                    req.requestMatchers(HttpMethod.PUT, "/matriculas/notas").hasAuthority("PROFESSOR");
+
+                    // ====================================================
+                    // 3. DASHBOARD E LEITURA GERAL
+                    // ====================================================
+                    req.requestMatchers(HttpMethod.GET, "/usuarios").hasAuthority("INSTITUICAO");
+                    req.requestMatchers(HttpMethod.GET, "/cursos/**").authenticated();
+                    req.requestMatchers(HttpMethod.GET, "/materias/**").authenticated();
+
+                    // ====================================================
+                    // 4. GERENCIAMENTO (ESCRITA - POST/PUT/DELETE)
+                    // ====================================================
+
+                    // --- USUÁRIOS ---
+                    req.requestMatchers(HttpMethod.DELETE, "/usuarios/**").hasAuthority("INSTITUICAO");
+                    req.requestMatchers(HttpMethod.PUT, "/usuarios/**").authenticated(); 
+
+                    // --- CURSOS ---
+                    req.requestMatchers(HttpMethod.POST, "/cursos/**").hasAuthority("INSTITUICAO");
+                    req.requestMatchers(HttpMethod.PUT, "/cursos/**").hasAuthority("INSTITUICAO");
+                    req.requestMatchers(HttpMethod.DELETE, "/cursos/**").hasAuthority("INSTITUICAO");
+
+                    // --- MATÉRIAS (Geral) ---
+                    req.requestMatchers(HttpMethod.PUT, "/matriculas/encerrar/*").hasAnyAuthority("PROFESSOR", "INSTITUICAO");
+                    req.requestMatchers(HttpMethod.POST, "/materias/**").hasAuthority("INSTITUICAO");
+                    req.requestMatchers(HttpMethod.PUT, "/materias/**").hasAuthority("INSTITUICAO");
+                    req.requestMatchers(HttpMethod.DELETE, "/materias/**").hasAuthority("INSTITUICAO");
                     
-                    // Se você já está logado como INSTITUICAO, você deve ter poder total sobre /usuarios
-                    req.requestMatchers(HttpMethod.DELETE, "/usuarios/**").hasRole("INSTITUICAO");
-                    req.requestMatchers(HttpMethod.PUT, "/usuarios/**").authenticated();
+                    // ====================================================
+                    // 5. OPERAÇÕES DE ALUNOS
+                    // ====================================================
+                    req.requestMatchers(HttpMethod.POST, "/matriculas").hasAuthority("ALUNO");
+                    req.requestMatchers(HttpMethod.GET, "/matriculas/**").authenticated();
 
-                    // --- RECURSOS DA INSTITUIÇÃO ---
-                    req.requestMatchers(HttpMethod.POST, "/alunos/**").hasRole("INSTITUICAO");
-                    req.requestMatchers(HttpMethod.POST, "/cursos/**").hasRole("INSTITUICAO");
-                    req.requestMatchers(HttpMethod.POST, "/materias/**").hasRole("INSTITUICAO");
-
-                    // --- RECURSOS DO ALUNO ---
-                    req.requestMatchers(HttpMethod.POST, "/matriculas/**").hasRole("ALUNO");
-
-                    // --- QUALQUER USUÁRIO LOGADO ---
+                    // --- QUALQUER OUTRA ROTA ---
                     req.anyRequest().authenticated();
                 })
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
@@ -64,7 +93,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(List.of("*"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 

@@ -44,6 +44,14 @@ body {
 
 #sidebar-wrapper .list-group { width: 16rem; }
 
+#sidebar-wrapper ::-webkit-scrollbar-track {
+    background: var(--primary-color);
+}
+
+#sidebar-wrapper ::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.2);
+}
+
 .list-group-item {
     border: none;
     padding: 18px 25px;
@@ -140,4 +148,66 @@ body {
 @media (min-width: 768px) {
     #sidebar-wrapper { margin-left: 0; }
     #wrapper.toggled #sidebar-wrapper { margin-left: -16rem; }
+}
+
+
+/* =========================================
+   CORREÇÕES E MELHORIAS 
+   ========================================= */
+
+/* Correção da Animação fade-in (Usada no JS) */
+@keyframes fadeInData {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeInData 0.4s ease-out forwards;
+}
+
+/* Melhoria nas Etiquetas de Notas (Badges) */
+.table .badge.bg-light {
+    background-color: #f1f5f9 !important; /* Um cinza azulado muito claro */
+    color: var(--primary-color) !important;
+    border: 1px solid #cbd5e1 !important; /* Borda mais visível */
+    font-weight: 600 !important;
+    letter-spacing: 0.3px;
+    padding: 0.5em 0.7em;
+}
+
+/* Melhoria nos Inputs de Notas (Modal) */
+.nota-row input:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 0.25rem rgba(14, 165, 233, 0.15);
+}
+
+/* Scrollbar Personalizada (Para o Sidebar e Tabelas longas) */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f5f9; 
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1; 
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8; 
+}
+
+/* Tabela Hover mais elegante */
+.table-hover tbody tr:hover {
+    background-color: rgba(14, 165, 233, 0.04); /* Um azul muito sutil */
+    transition: background-color 0.2s ease;
 }

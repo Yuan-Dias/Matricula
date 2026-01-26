@@ -1,27 +1,30 @@
 package br.com.matricula.service;
 
-import br.com.matricula.dto.DadosAluno;
-import br.com.matricula.model.Aluno;
-import br.com.matricula.repository.AlunoRepository;
-import br.com.matricula.repository.UsuarioRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import java.util.List;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import br.com.matricula.dto.DadosAluno;
+import br.com.matricula.model.Aluno;
+import br.com.matricula.repository.AlunoRepository;
+import br.com.matricula.repository.UsuarioRepository;
 
 @Service
 public class AlunoService {
 
-    @Autowired
-    private AlunoRepository repository;
+    private final AlunoRepository repository;
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+    private final UsuarioRepository usuarioRepository;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
+
+    public AlunoService(AlunoRepository repository, UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
+        this.repository = repository;
+        this.usuarioRepository = usuarioRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
 
     /**
      * Cadastra um novo aluno no sistema.

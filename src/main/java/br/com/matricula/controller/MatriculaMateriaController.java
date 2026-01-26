@@ -1,36 +1,40 @@
 package br.com.matricula.controller;
 
 import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import br.com.matricula.dto.*;
-import br.com.matricula.model.*;
+import br.com.matricula.model.Usuario;
 import br.com.matricula.repository.UsuarioRepository;
-import br.com.matricula.service.MatriculaService;
+import br.com.matricula.service.*;
 import jakarta.validation.Valid;
+import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/matriculas")
 public class MatriculaMateriaController {
 
-    @Autowired
-    private MatriculaService service;
-    
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+    private final MatriculaService service;
+    private final MateriaService materiaService;
+    private final UsuarioRepository usuarioRepository;
 
-    /**
-     * EFETUAR MATRÍCULA EM DISCIPLINA
-     * Valida se o aluno já pertence ao curso da disciplina antes de matricular.
-     */
+    public MatriculaMateriaController(MatriculaService service, MateriaService materiaService, UsuarioRepository usuarioRepository) {
+        this.service = service;
+        this.materiaService = materiaService;
+        this.usuarioRepository = usuarioRepository;
+    }
+
     @PostMapping
     @PreAuthorize("hasAuthority('INSTITUICAO') or hasAuthority('ALUNO')")
     public ResponseEntity<Object> matricular(@RequestBody @Valid DadosMatricula dados) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         var usuarioLogado = (Usuario) usuarioRepository.findByLogin(auth.getName());
+
+        if (usuarioLogado == null) return ResponseEntity.status(401).build();
+
         try {
             service.matricularNaMateria(dados, usuarioLogado);
             return ResponseEntity.ok().build();
@@ -39,30 +43,22 @@ public class MatriculaMateriaController {
         }
     }
 
-    /**
-     * LISTAGEM DINÂMICA
-     * O retorno varia conforme o usuário logado (Aluno, Professor ou Instituição).
-     */
     @GetMapping
-    public List<DadosListagemMatriculaMateria> listar() {
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<DadosListagemMatriculaMateria>> listar() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         var usuario = (Usuario) usuarioRepository.findByLogin(auth.getName());
-        return service.listarMatriculas(usuario);
+
+        if (usuario == null) return ResponseEntity.status(401).build();
+
+        return ResponseEntity.ok(service.listarMatriculas(usuario));
     }
 
-    /**
-     * LISTAGEM ESPECÍFICA POR CURSO
-     * Retorna todas as matrículas de disciplinas vinculadas a um curso específico.
-     */
     @GetMapping("/curso/{idCurso}")
     public ResponseEntity<List<DadosListagemMatriculaMateria>> listarPorCurso(@PathVariable Long idCurso) {
         return ResponseEntity.ok(service.listarMatriculasPorCurso(idCurso));
     }
 
-    /**
-     * LANÇAMENTO DE NOTAS
-     * Funcionalidade exclusiva do Professor da disciplina.
-     */
     @PutMapping("/notas")
     @PreAuthorize("hasAuthority('PROFESSOR')")
     public ResponseEntity<Object> lancarNota(@RequestBody @Valid DadosLancamentoNota dados) {
@@ -85,4 +81,34 @@ public class MatriculaMateriaController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @PutMapping("/encerrar/{idMateria}")
+    @PreAuthorize("hasAuthority('PROFESSOR')")
+    @Transactional
+    public ResponseEntity<Object> encerrarMateria(@PathVariable Long idMateria) {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        try {
+            materiaService.finalizarSemestre(idMateria, auth.getName());
+            return ResponseEntity.ok("Matéria encerrada e notas finais consolidadas!");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PutMapping("/{id}")
+@PreAuthorize("hasAuthority('INSTITUICAO') or hasAuthority('ALUNO')")
+@Transactional
+public ResponseEntity<Object> atualizarStatus(@PathVariable Long id, @RequestBody java.util.Map<String, String> corpo) {
+    try {
+        var matricula = service.buscarPorId(id); // Você precisará criar esse método simples no Service
+        if (corpo.containsKey("situacao")) {
+            // Supondo que sua model Matricula tenha o método setSituacao e aceite String ou Enum
+            matricula.setSituacao(br.com.matricula.model.StatusMatricula.valueOf(corpo.get("situacao")));
+            return ResponseEntity.ok().build();
+        }
+        return ResponseEntity.badRequest().body("Situação não informada");
+    } catch (Exception e) {
+        return ResponseEntity.badRequest().body(e.getMessage());
+    }
+}
 }

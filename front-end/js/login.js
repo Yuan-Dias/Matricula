@@ -2,12 +2,32 @@ const API_URL = "http://localhost:8080";
 
 // --- 1. INICIALIZAÇÃO ---
 
-// Verifica se já tem sessão ativa ao abrir
-if (localStorage.getItem("sga_token") && localStorage.getItem("sga_user")) {
-    window.location.href = "../index.html";
-}
+document.addEventListener("DOMContentLoaded", () => {
 
-document.addEventListener('DOMContentLoaded', () => {
+    // 1. Verifica se o usuário foi "chutado" do sistema (veio pelo logout)
+    const params = new URLSearchParams(window.location.search);
+    const sessaoExpirada = params.get('expired');
+
+    if (sessaoExpirada) {
+        localStorage.clear();
+        sessionStorage.clear();
+
+        mostrarToast("Sua sessão expirou. Faça login novamente.", "danger");
+
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        verificarEstadoDoSistema();
+
+        return;
+    }
+
+    // 2. Lógica normal: Se tem token e NÃO foi expulso agora, entra direto
+    const token = localStorage.getItem("sga_token");
+    if (token && token !== "null" && token !== "undefined") {
+        console.log("Token encontrado, redirecionando para dashboard...");
+        window.location.href = "../index.html";
+    }
+
     verificarEstadoDoSistema();
 });
 
@@ -92,6 +112,8 @@ async function fazerLogin() {
         // --- No trecho de sucesso do fazerLogin ---
         if (response.ok) {
             const data = await response.json();
+
+            console.log("O QUE O JAVA RESPONDEU DE VERDADE:", data);
             
             if (!data.token) throw new Error("Token ausente.");
 
@@ -170,5 +192,18 @@ async function realizarPrimeiroAcesso() {
     } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;
+    }
+}
+
+function mostrarToast(mensagem, tipo = 'danger') {
+    const toastEl = document.getElementById('toast');
+    const toastBody = document.getElementById('toast-msg');
+
+    if(toastEl && toastBody) {
+        toastBody.innerText = mensagem;
+        const bgClass = tipo === 'success' ? 'bg-success' : 'bg-danger';
+        toastEl.className = `toast align-items-center text-white border-0 shadow ${bgClass}`;
+        const toast = new bootstrap.Toast(toastEl);
+        toast.show();
     }
 }

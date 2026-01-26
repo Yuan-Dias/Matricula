@@ -1,6 +1,17 @@
 package br.com.matricula.model;
 
-import jakarta.persistence.*;
+import java.util.ArrayList;
+import java.util.List;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 
 @Entity(name = "Materia")
 @Table(name = "materias")
@@ -19,6 +30,11 @@ public class Materia {
     @ManyToOne
     @JoinColumn(name = "professor_id")
     private Usuario professor;
+
+    @OneToMany(mappedBy = "materia", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ConfiguracaoAvaliacao> configuracoes = new ArrayList<>();
+
+    private boolean encerrada = false;
 
     public Materia() {}
 
@@ -40,4 +56,8 @@ public class Materia {
     public void setCurso(Curso curso) {this.curso = curso;}
     public Usuario getProfessor() {return professor;}
     public void setProfessor(Usuario professor) {this.professor = professor;}
+    public List<ConfiguracaoAvaliacao> getConfiguracoes() { return configuracoes; }
+    public void setConfiguracoes(List<ConfiguracaoAvaliacao> configuracoes) { this.configuracoes = configuracoes; }
+    public boolean isEncerrada() { return encerrada; }
+    public void setEncerrada(boolean encerrada) { this.encerrada = encerrada; }
 }

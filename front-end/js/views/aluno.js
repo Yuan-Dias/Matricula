@@ -1,46 +1,20 @@
 // CONFIGURAÇÕES E INICIALIZAÇÃO DO ALUNO
-async function carregarAluno() {
-    if(typeof pageTitle !== 'undefined' && pageTitle) {
-        pageTitle.innerHTML = '<span class="fw-bold text-primary">Portal</span> do Aluno';
-    }
-    
-    const user = getUser();
-    const userNameDisplay = document.getElementById("user-name-display"); 
-    if (userNameDisplay && user.nome) {
-        userNameDisplay.innerText = user.nome;
-    }
 
-    const matriculasCurso = await fetchAPI(`/matriculas/curso/aluno/${user.id}`);
-    const temCurso = matriculasCurso && matriculasCurso.length > 0;
-
-    const sidebarMenu = document.getElementById("sidebar-menu");
-    if (sidebarMenu) {
-        sidebarMenu.innerHTML = `
-            <a href="#" onclick="alunoRenderHome()" class="list-group-item list-group-item-action bg-transparent second-text fw-bold">
-                <i class="fas fa-home me-2"></i>Início
-            </a>
-            <a href="#" onclick="alunoRenderCatalogoCursos()" class="list-group-item list-group-item-action bg-transparent second-text fw-bold">
-                <i class="fas fa-graduation-cap me-2"></i>Cursos Disponíveis
-            </a>
-            ${temCurso ? `
-                <a href="#" onclick="alunoRenderCurso()" class="list-group-item list-group-item-action bg-transparent second-text fw-bold">
-                    <i class="fas fa-tasks me-2"></i>Meu Progresso
-                </a>
-                <a href="#" onclick="alunoRenderDisciplinas()" class="list-group-item list-group-item-action bg-transparent second-text fw-bold">
-                    <i class="fas fa-book-open me-2"></i>Minhas Notas
-                </a>
-                <a href="#" onclick="alunoRenderMatricula()" class="list-group-item list-group-item-action bg-transparent second-text fw-bold">
-                    <i class="fas fa-plus-circle me-2"></i>Matrícula em Disciplinas
-                </a>
-            ` : `
-                <div class="list-group-item list-group-item-action bg-transparent text-muted small fw-bold opacity-50">
-                    <i class="fas fa-lock me-2"></i>Funcionalidades Bloqueadas
+function cardStat(titulo, valor, icone, cor) {
+    return `
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-${cor}">
+                <div class="card-body d-flex align-items-center p-4">
+                    <div class="rounded-circle bg-${cor} bg-opacity-10 p-3 me-3 text-${cor}">
+                        <i class="fas ${icone} fa-2x"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted text-uppercase small fw-bold mb-1">${titulo}</h6>
+                        <h2 class="fw-bold mb-0 text-dark">${valor}</h2>
+                    </div>
                 </div>
-            `}
-        `;
-    }
-
-    alunoRenderHome();
+            </div>
+        </div>`;
 }
 
 // --- UTILITÁRIO: MODAL DE MENSAGEM ---
@@ -69,23 +43,91 @@ function mostrarModalMsg(titulo, mensagem, tipo = 'success') {
     new bootstrap.Modal(document.getElementById('modalMsgGerada')).show();
 }
 
+async function carregarAluno() {
+    if (typeof pageTitle !== 'undefined' && pageTitle) {
+        pageTitle.innerHTML = '<span class="fw-bold text-primary">Portal</span> do Aluno';
+    }
+
+    const user = getUser();
+    const userNameDisplay = document.getElementById("user-name-display");
+    if (userNameDisplay && user.nome) {
+        userNameDisplay.innerText = user.nome;
+    }
+
+    let matriculasCurso = [];
+    try {
+        matriculasCurso = await fetchAPI(`/matriculas/curso/aluno/${user.id}`);
+    } catch (e) {
+        console.warn("Não foi possível carregar matrículas de curso na inicialização.");
+    }
+    
+    const temCurso = Array.isArray(matriculasCurso) && matriculasCurso.length > 0;
+
+    const sidebarMenu = document.getElementById("sidebar-menu");
+    if (sidebarMenu) {
+        sidebarMenu.innerHTML = `
+            <a href="#" onclick="alunoRenderHome()" class="list-group-item list-group-item-action bg-transparent second-text fw-bold">
+                <i class="fas fa-home me-2"></i>Início
+            </a>
+            <a href="#" onclick="alunoRenderCatalogoCursos()" class="list-group-item list-group-item-action bg-transparent second-text fw-bold">
+                <i class="fas fa-graduation-cap me-2"></i>Cursos Disponíveis
+            </a>
+            ${temCurso ? `
+                <a href="#" onclick="alunoRenderCurso()" class="list-group-item list-group-item-action bg-transparent second-text fw-bold">
+                    <i class="fas fa-tasks me-2"></i>Meu Progresso
+                </a>
+                <a href="#" onclick="alunoRenderDisciplinas()" class="list-group-item list-group-item-action bg-transparent second-text fw-bold">
+                    <i class="fas fa-book-open me-2"></i>Minhas Notas
+                </a>
+                <a href="#" onclick="alunoRenderMatricula()" class="list-group-item list-group-item-action bg-transparent second-text fw-bold">
+                    <i class="fas fa-plus-circle me-2"></i>Matrícula em Disciplinas
+                </a>
+            ` : `
+                <div class="list-group-item list-group-item-action bg-transparent text-muted small fw-bold opacity-50">
+                    <i class="fas fa-lock me-2"></i>Funcionalidades Bloqueadas
+                </div>
+            `}
+        `;
+    }
+
+    // Carrega a home por padrão
+    alunoRenderHome();
+}
+
 // --- DASHBOARD (HOME) ---
 async function alunoRenderHome() {
     atualizarMenuAtivo('Início');
+
+    const appContent = document.getElementById('appContent');
+    if (!appContent) return;
+
     instLoading(true);
     const user = getUser();
 
     try {
         const matriculas = await fetchAPI('/matriculas');
-        const minhas = matriculas.filter(m => {
-            const idDoc = m.idAluno || (m.aluno ? m.aluno.id : null);
-            return parseInt(idDoc) === parseInt(user.id);
+        
+        const minhas = matriculas ? matriculas.filter(m => {
+            const idAlu = m.idAluno || (m.aluno ? m.aluno.id : null);
+            const isMeuId = parseInt(idAlu) === parseInt(user.id);
+            const isAtiva = !['HISTORICO', 'CANCELADO'].includes(m.situacao);
+            return isMeuId && isAtiva;
+        }) : [];
+
+        const totalMateriasAtivas = minhas.length;
+        
+        let somaNotas = 0;
+        let materiasParaMedia = 0;
+        
+        minhas.forEach(m => {
+            const mf = parseFloat(m.mediaFinal);
+            if (!isNaN(mf) && mf > 0) {
+                somaNotas += mf;
+                materiasParaMedia++;
+            }
         });
         
-        const totalMaterias = minhas.length;
-        let somaNotas = 0;
-        minhas.forEach(m => somaNotas += (m.nota || 0));
-        const cr = totalMaterias > 0 ? (somaNotas / totalMaterias).toFixed(1) : "0.0";
+        const cr = materiasParaMedia > 0 ? (somaNotas / materiasParaMedia).toFixed(1) : "0.0";
 
         appContent.innerHTML = `
             <div class="row mb-4 fade-in">
@@ -100,7 +142,7 @@ async function alunoRenderHome() {
             </div>
             <div class="row g-4 mb-4 fade-in">
                 ${cardStat('MÉDIA GERAL (CR)', cr, 'fa-chart-line', 'success')}
-                ${cardStat('DISCIPLINAS ATIVAS', totalMaterias, 'fa-book', 'warning')}
+                ${cardStat('DISCIPLINAS ATIVAS', totalMateriasAtivas, 'fa-book', 'warning')}
             </div>
             <div class="card border-0 shadow-sm p-4 bg-white rounded-3 fade-in text-center">
                 <h5 class="fw-bold mb-3 border-bottom pb-2">Acesso Rápido</h5>
@@ -114,121 +156,199 @@ async function alunoRenderHome() {
                 </div>
             </div>`;
     } catch (e) {
+        console.error(e);
         exibirErroVisual("Erro ao carregar os dados do seu dashboard.");
+    } finally {
+        instLoading(false);
     }
 }
 
-// --- MEU CURSO (VISÃO GERAL / PROGRESSO) ---
+// --- MEU CURSO (VISÃO GERAL / PROGRESSO / RE-MATRÍCULA) ---
 async function alunoRenderCurso() {
     atualizarMenuAtivo('Meu Progresso');
     instLoading(true);
     const user = getUser();
+    const appContent = document.getElementById('appContent');
+    if (!appContent) return;
 
     try {
         const [matriculasCurso, todasMaterias, todasMatriculas] = await Promise.all([
-            fetchAPI(`/matriculas/curso/aluno/${user.id}`),
+            fetchAPI(`/matriculas/curso/aluno/${user.id}`), 
             fetchAPI('/materias'),
             fetchAPI('/matriculas')
         ]);
 
         if (!matriculasCurso || matriculasCurso.length === 0) {
-            appContent.innerHTML = `
-                <div class="text-center py-5 fade-in">
-                    <i class="fas fa-graduation-cap fa-3x text-muted mb-3"></i>
-                    <p class="fs-5">Você ainda não está vinculado a nenhum curso.</p>
-                    <button class="btn btn-primary" onclick="alunoRenderCatalogoCursos()">Ver Catálogo</button>
-                </div>`;
+            appContent.innerHTML = `<div class="text-center py-5"><p class="text-muted">Você não está matriculado em nenhum curso.</p></div>`;
             return;
         }
 
-        const minhasMatriculasMaterias = todasMatriculas.filter(m => {
+        const minhasMatriculasDisciplinas = (todasMatriculas || []).filter(m => {
             const idAlu = m.idAluno || (m.aluno ? m.aluno.id : null);
             return parseInt(idAlu) === parseInt(user.id);
         });
 
-        let htmlFinal = `<h4 class="fw-bold mb-4">Seu Desempenho por Curso</h4>`;
+        let htmlFinal = `<h4 class="fw-bold mb-4">Seu Desempenho Acadêmico</h4>`;
 
         matriculasCurso.forEach(cursoMat => {
-            const gradeDoCurso = todasMaterias.filter(m => 
-                m.nomeCurso?.trim().toLowerCase() === cursoMat.nomeCurso?.trim().toLowerCase()
+            const gradeDoCurso = (todasMaterias || []).filter(m => 
+                m.nomeCurso && cursoMat.nomeCurso &&
+                m.nomeCurso.trim().toLowerCase() === cursoMat.nomeCurso.trim().toLowerCase()
             );            
 
-            const cursadas = [];
-            const faltantes = [];
+            const materiasConcluidas = [];
+            const materiasPendentes = [];
 
             gradeDoCurso.forEach(materiaGrade => {
-                const matriculaExistente = minhasMatriculasMaterias.find(mm => {
-                    const idMateriaRef = mm.idMateria || mm.idMatriculaMateria || (mm.materia ? mm.materia.id : null);
-                    return parseInt(idMateriaRef) === parseInt(materiaGrade.id);
+                const historicoMateria = minhasMatriculasDisciplinas.filter(mm => {
+                    const idMateriaRef = mm.idMateria || (mm.materia ? mm.materia.id : null);
+                    return parseInt(idMateriaRef) === parseInt(materiaGrade.id) && mm.status !== 'HISTORICO';
                 });
 
-                if (matriculaExistente) {
-                    cursadas.push({ 
-                        ...materiaGrade, 
-                        idMatricula: matriculaExistente.id
+                const aprovacao = historicoMateria.find(m => m.situacao === 'APROVADO');
+                const matriculaFinalizada = historicoMateria.find(m => m.status === 'FINALIZADA');
+                const matriculaEmAndamento = historicoMateria.find(m => m.status === 'CURSANDO');
+
+                if (aprovacao) {
+                    materiasConcluidas.push({ ...materiaGrade, nota: aprovacao.mediaFinal, status: 'APROVADO' });
+                } else if (matriculaFinalizada && (detalhesReprovacao = historicoMateria.find(m => m.situacao === 'REPROVADO'))) {
+                    materiasPendentes.push({
+                        ...materiaGrade,
+                        status: 'REPROVADO',
+                        nota: parseFloat(detalhesReprovacao.mediaFinal),
+                        idHistorico: detalhesReprovacao.id 
+                    });
+                } else if (matriculaEmAndamento) {
+                    materiasPendentes.push({
+                        ...materiaGrade,
+                        status: 'CURSANDO',
+                        idHistorico: matriculaEmAndamento.id
                     });
                 } else {
-                    faltantes.push(materiaGrade);
+                    materiasPendentes.push({ ...materiaGrade, status: 'DISPONIVEL' });
                 }
             });
 
-            const percentual = gradeDoCurso.length > 0 ? Math.round((cursadas.length / gradeDoCurso.length) * 100) : 0;
-
-            htmlFinal += `
-                <div class="card border-0 shadow-sm mb-5 p-4 fade-in">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div>
-                            <h5 class="fw-bold text-primary mb-0">${cursoMat.nomeCurso}</h5>
-                            <small class="text-muted">ID da Matrícula: ${cursoMat.id}</small>
-                        </div>
-                        <span class="badge bg-primary">${percentual}% concluído</span>
-                    </div>
-                    <div class="progress mb-4" style="height: 10px; border-radius: 5px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: ${percentual}%"></div>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <h6 class="small fw-bold text-success text-uppercase mb-3"><i class="fas fa-check-circle me-1"></i>Disciplinas Matriculadas</h6>
-                            <ul class="list-group list-group-flush border rounded">
-                                ${cursadas.map(m => `
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span class="small">${m.nome}</span>
-                                        <button class="btn btn-link text-danger btn-sm p-0 text-decoration-none" 
-                                            onclick="alunoCancelarMateria(${m.idMatricula}, '${m.nome}')">Trancar</button>
-                                    </li>`).join('') || '<li class="list-group-item small text-muted">Nenhuma matéria iniciada.</li>'}
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <h6 class="small fw-bold text-muted text-uppercase mb-3"><i class="fas fa-clock me-1"></i>Restantes da Grade</h6>
-                            <ul class="list-group list-group-flush border rounded">
-                                ${faltantes.map(m => `
-                                    <li class="list-group-item d-flex justify-content-between align-items-center bg-light">
-                                        <span class="small text-muted">${m.nome}</span>
-                                        <button class="btn btn-sm btn-outline-primary py-0" style="font-size: 10px" onclick="alunoRenderMatricula()">Matricular</button>
-                                    </li>`).join('') || '<li class="list-group-item small text-success fw-bold">Parabéns! Grade completa.</li>'}
-                            </ul>
-                        </div>
-                    </div>
-                </div>`;
+            const totalMaterias = gradeDoCurso.length;
+            const percentual = totalMaterias > 0 ? Math.round((materiasConcluidas.length / totalMaterias) * 100) : 0;
+            htmlFinal += renderizarCardCurso(cursoMat, percentual, materiasConcluidas, materiasPendentes);
         });
 
         appContent.innerHTML = htmlFinal;
+
     } catch (e) { 
-        console.error(e);
-        appContent.innerHTML = '<div class="alert alert-danger">Erro ao carregar o progresso do curso.</div>'; 
+        console.error("Erro ao renderizar curso:", e);
+        appContent.innerHTML = '<div class="alert alert-danger">Erro ao carregar o progresso acadêmico.</div>'; 
     } finally { 
         instLoading(false); 
     }
 }
 
+// Função auxiliar para manter o código limpo
+function renderizarCardCurso(cursoMat, percentual, concluidas, pendentes) {
+    return `
+        <div class="card border-0 shadow-sm mb-5 p-4 fade-in">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="fw-bold text-primary mb-0">${cursoMat.nomeCurso}</h5>
+                    <small class="text-muted">${percentual === 100 ? 'Formado' : 'Em Andamento'}</small>
+                </div>
+                <span class="badge bg-primary fs-6">${percentual}% Concluído</span>
+            </div>
+            <div class="progress mb-4" style="height: 10px; border-radius: 5px;">
+                <div class="progress-bar bg-success" style="width: ${percentual}%"></div>
+            </div>
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <h6 class="small fw-bold text-success text-uppercase mb-3 border-bottom pb-2">Concluídas</h6>
+                    <ul class="list-group list-group-flush">
+                        ${concluidas.map(m => `
+                            <li class="list-group-item d-flex justify-content-between align-items-center bg-success bg-opacity-10 mb-2 rounded border-0">
+                                <span class="fw-bold text-dark">${m.nome}</span>
+                                <span class="badge bg-success">Nota: ${parseFloat(m.nota).toFixed(1)}</span>
+                            </li>`).join('') || '<li class="text-muted small">Nenhuma concluída.</li>'}
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="small fw-bold text-muted text-uppercase mb-3 border-bottom pb-2">Grade Pendente</h6>
+                    <div class="list-group">
+                        ${pendentes.map(m => {
+                            let badge = '', action = '';
+                            if(m.status === 'CURSANDO') {
+                                badge = `<span class="badge bg-primary">Cursando</span>`;
+                                action = `<button class="btn btn-sm btn-link text-decoration-none fw-bold" onclick="alunoRenderDisciplinas()">Ver Notas</button>`;
+                            } else if (m.status === 'REPROVADO') {
+                                badge = `<span class="badge bg-danger">Reprovado (${m.nota.toFixed(1)})</span>`;
+                                action = `<button class="btn btn-sm btn-outline-danger" onclick="alunoRefazerMateria(${m.id}, ${m.idHistorico}, '${m.nome.replace(/'/g, "\\'")}')">Refazer</button>`;
+                            } else {
+                                badge = `<span class="badge bg-secondary text-dark">Pendente</span>`;
+                                action = `<button class="btn btn-sm btn-outline-primary" onclick="confirmarMatricula(${m.id}, '${m.nome.replace(/'/g, "\\'")}')">Matricular</button>`;
+                            }
+                            return `
+                                <div class="list-group-item d-flex justify-content-between align-items-center border-0 border-bottom">
+                                    <div><span class="d-block fw-medium">${m.nome}</span>${badge}</div>
+                                    <div>${action}</div>
+                                </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+        </div>`;
+}
+
+async function alunoRefazerMateria(idMateria, idMatriculaAntiga, nomeMateria) {
+    if (!confirm(`Deseja mover a reprovação de "${nomeMateria}" para o histórico e tentar novamente?`)) return;
+
+    try {
+        instLoading(true);
+        const user = getUser();
+
+        await fetchAPI(`/matriculas/${idMatriculaAntiga}`, 'PUT', {
+            situacao: 'HISTORICO'
+        });
+
+        const payload = { 
+            idAluno: parseInt(user.id), 
+            idMateria: parseInt(idMateria),
+            situacao: 'CURSANDO',
+            nota1: 0,
+            nota2: 0,
+            mediaFinal: 0
+        };
+
+        const response = await fetchAPI('/matriculas', 'POST', payload);
+        
+        if(response) {
+            mostrarToast(`Sucesso! Nova matrícula em ${nomeMateria} iniciada.`, "success");
+            setTimeout(() => {
+                if (typeof alunoRenderCurso === 'function') alunoRenderCurso();
+                if (typeof alunoRenderMatricula === 'function') alunoRenderMatricula();
+            }, 800);
+        }
+
+    } catch (error) {
+        console.error("Erro ao refazer matéria:", error);
+        mostrarToast("Erro: Verifique se o sistema permitiu mover a nota antiga para o Histórico.", "danger");
+    } finally {
+        instLoading(false);
+    }
+}
+
 // --- MINHAS DISCIPLINAS (FILTRO POR NOTA) ---
 async function alunoRenderDisciplinas() {
+    const appContent = document.getElementById('appContent');
+    if (!appContent) return;
+
     atualizarMenuAtivo('Minhas Disciplinas');
     appContent.innerHTML = `
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="fw-bold">Minhas Notas</h4>
+        <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm border-start border-primary border-4">
+            <div>
+                <h4 class="m-0 fw-bold">Minhas Notas</h4>
+                <p class="text-muted small mb-0">Acompanhe seu desempenho acadêmico em tempo real.</p>
+            </div>
             <div class="input-group" style="width: 300px;">
-                <input type="text" id="buscaInput" class="form-control" placeholder="Filtrar por nome..." oninput="alunoFiltrarDisciplinas()">
+                <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+                <input type="text" id="buscaInput" class="form-control border-start-0" placeholder="Filtrar disciplina..." oninput="alunoFiltrarDisciplinas()">
             </div>
         </div>
         <div class="row g-3" id="disciplinasContainer"></div>`;
@@ -236,46 +356,166 @@ async function alunoRenderDisciplinas() {
 }
 
 async function alunoFiltrarDisciplinas() {
-    const termo = document.getElementById('buscaInput')?.value || "";
+    const buscaInput = document.getElementById('buscaInput');
+    const termo = buscaInput ? buscaInput.value.toLowerCase() : "";
     const container = document.getElementById('disciplinasContainer');
     const user = getUser();
 
+    if (!container) return;
+
     try {
-        const matriculas = await fetchAPI('/matriculas');
+        const todasMatriculas = await fetchAPI('/matriculas');
         
-        let minhas = filtrarMinhasMatriculas(matriculas, user);
+        let minhas = (todasMatriculas || []).filter(m => {
+            const idAlu = m.idAluno || (m.aluno ? m.aluno.id : null);
+            const isMeuId = parseInt(idAlu) === parseInt(user.id);
+            const isVisivel = !['HISTORICO', 'CANCELADO'].includes(m.situacao);
+            return isMeuId && isVisivel;
+        });
         
-        minhas = filtrarDados(minhas, termo, ['nomeMateria']);
+        if (termo) {
+            minhas = minhas.filter(m => 
+                (m.nomeMateria && m.nomeMateria.toLowerCase().includes(termo)) ||
+                (m.nomeCurso && m.nomeCurso.toLowerCase().includes(termo))
+            );
+        }
 
         if(minhas.length === 0) {
-            container.innerHTML = '<div class="text-center p-5 text-muted">Nenhuma disciplina vinculada.</div>';
+            container.innerHTML = '<div class="col-12 text-center p-5 text-muted">Nenhuma disciplina encontrada.</div>';
             return;
         }
 
-        container.innerHTML = minhas.map(m => `
-            <div class="col-md-6 fade-in">
-                <div class="card h-100 border-0 shadow-sm border-start border-4 border-${(m.nota || 0) >= 6 ? 'success' : 'primary'}">
+        container.innerHTML = minhas.map(m => {
+            const media = (m.mediaFinal !== null) ? parseFloat(m.mediaFinal) : 0;
+            
+            const situacaoReal = m.situacao; 
+
+            const configStatus = {
+                'APROVADO':    { classe: 'success',           texto: 'Aprovado',    icone: 'fa-check-circle' },
+                'REPROVADO':   { classe: 'danger',            texto: 'Reprovado',   icone: 'fa-times-circle' },
+                'CURSANDO':    { classe: 'info text-white',   texto: 'Em Curso',    icone: 'fa-pencil-alt' },
+                'RECUPERACAO': { classe: 'warning text-dark', texto: 'Recuperação', icone: 'fa-exclamation-triangle' }
+            };
+
+            const status = configStatus[situacaoReal] || configStatus['CURSANDO'];
+
+            const corNota = (media >= 7) ? 'text-success' : (media >= 5 ? 'text-warning' : 'text-danger');
+
+            return `
+            <div class="col-md-6 col-lg-4 fade-in">
+                <div class="card h-100 border-0 shadow-sm border-top border-4 border-${status.classe.split(' ')[0]}">
                     <div class="card-body">
-                        <small class="text-muted uppercase fw-bold small">${m.nomeCurso || 'Curso'}</small>
-                        <h5 class="fw-bold mb-3">${m.nomeMateria}</h5>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="h2 mb-0 fw-bold ${(m.nota || 0) >= 6 ? 'text-success' : ''}">${(m.nota || 0).toFixed(1)}</span>
-                            <span class="badge ${(m.nota || 0) >= 6 ? 'bg-success' : 'bg-warning text-dark'}">
-                                ${(m.nota || 0) >= 6 ? 'Aprovado' : 'Em Curso'}
+                        <div class="d-flex justify-content-between align-start mb-3">
+                            <div>
+                                <small class="text-muted fw-bold small text-uppercase">${m.nomeCurso || 'Curso'}</small>
+                                <h5 class="fw-bold text-dark mt-1">${m.nomeMateria}</h5>
+                            </div>
+                            <span class="badge bg-${status.classe} px-2 py-2 rounded-pill shadow-sm" style="font-size: 0.7rem;">
+                                <i class="fas ${status.icone} me-1"></i>${status.texto}
                             </span>
+                        </div>
+                        
+                        <div class="bg-light rounded p-3 d-flex justify-content-between align-center mb-3">
+                            <span class="small text-muted fw-bold">${situacaoReal === 'CURSANDO' ? 'MÉDIA ATUAL' : 'MÉDIA FINAL'}</span>
+                            <span class="h4 mb-0 fw-bold ${corNota}">
+                                ${media.toFixed(1)}
+                            </span>
+                        </div>
+
+                        <button class="btn btn-sm btn-outline-primary w-100 rounded-pill fw-bold" 
+                                onclick="alunoVerDetalhesNotas(${m.idMateria}, '${m.nomeMateria}')">
+                            <i class="fas fa-list-ol me-1"></i> Ver Detalhes
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+            
+    } catch (e) { 
+        console.error('Erro ao filtrar disciplinas:', e);
+        if (container) container.innerHTML = '<div class="alert alert-danger col-12">Erro ao carregar notas.</div>'; 
+    }
+}
+
+// Função auxiliar simples para cor da nota na tabela
+function getNotaColor(valor) {
+    if (valor >= 6) return 'text-success';
+    if (valor < 6) return 'text-danger';
+    return 'text-dark';
+}
+
+async function alunoVerDetalhesNotas(idMateria, nomeMateria) {
+    instLoading(true);
+    try {
+        const user = getUser();
+        const [avaliacoes, matriculas] = await Promise.all([
+            fetchAPI(`/materias/${idMateria}/avaliacoes`),
+            fetchAPI('/matriculas')
+        ]);
+        
+        const detalhes = matriculas.find(m => {
+            const idAlu = m.idAluno || (m.aluno ? m.aluno.id : null);
+            const idMat = m.idMateria || (m.materia ? m.materia.id : null);
+            return parseInt(idAlu) === parseInt(user.id) && parseInt(idMat) === parseInt(idMateria);
+        });
+
+        if (!detalhes) return mostrarToast("Detalhes não encontrados.", "warning");
+
+        const mapaNotas = {};
+        if (Array.isArray(detalhes.notas)) {
+            detalhes.notas.forEach(n => { mapaNotas[n.idConfiguracao] = n.valor; });
+        }
+
+        const modalHtml = `
+            <div class="modal fade" id="modalDetalhesNotas" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-0 shadow-lg">
+                        <div class="modal-header bg-light">
+                            <h5 class="modal-title fw-bold">${nomeMateria}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body p-4">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr><th>Avaliação</th><th class="text-center">Nota</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        ${avaliacoes.map(av => `
+                                            <tr>
+                                                <td>${av.descricaoNota || av.nome} <small>(Peso ${av.peso})</small></td>
+                                                <td class="text-center fw-bold">${mapaNotas[av.id] !== undefined ? Number(mapaNotas[av.id]).toFixed(1) : '-'}</td>
+                                            </tr>
+                                        `).join('')}
+                                        <tr class="table-primary">
+                                            <td class="fw-bold">MÉDIA FINAL</td>
+                                            <td class="text-center fw-bold">${parseFloat(detalhes.mediaFinal || 0).toFixed(1)}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>`).join('');
-            
-    } catch (e) { 
-        container.innerHTML = '<div class="alert alert-danger">Erro ao carregar notas.</div>'; 
+            </div>`;
+
+        document.getElementById('modalDetalhesNotas')?.remove();
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        new bootstrap.Modal(document.getElementById('modalDetalhesNotas')).show();
+    } catch (e) {
+        mostrarToast("Erro ao carregar detalhes.", "danger");
+    } finally {
+        instLoading(false);
     }
 }
 
 // --- MATRÍCULA ONLINE (RESTRITO AO CURSO) ---
 async function alunoRenderMatricula() {
     atualizarMenuAtivo('Matrícula Online');
+    const appContent = document.getElementById('appContent');
+    
+    if (!appContent) return; 
+
     appContent.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4 class="fw-bold">Catálogo de Disciplinas</h4>
@@ -283,10 +523,20 @@ async function alunoRenderMatricula() {
                 <input type="text" id="buscaInput" class="form-control" placeholder="Buscar no catálogo..." oninput="alunoFiltrarMatricula()">
             </div>
         </div>
-        <div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table table-hover align-middle mb-0">
-            <thead class="bg-light"><tr><th class="ps-4">Curso</th><th>Disciplina</th><th class="text-end pe-4">Ação</th></tr></thead>
-            <tbody id="matriculaTableBody"></tbody>
-        </table></div></div>`;
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Curso</th>
+                            <th>Disciplina</th>
+                            <th class="text-end pe-4">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="matriculaTableBody"></tbody>
+                </table>
+            </div>
+        </div>`;
     alunoFiltrarMatricula();
 }
 
@@ -302,9 +552,10 @@ function filtrarMinhasMatriculas(matriculas, user) {
 
 async function alunoFiltrarMatricula() {
     const container = document.getElementById('matriculaTableBody');
+    if (!container) return;
+
     const termoBusca = document.getElementById('buscaInput')?.value.toLowerCase() || "";
     const user = getUser();
-
     let htmlRows = "";
 
     try {
@@ -319,31 +570,38 @@ async function alunoFiltrarMatricula() {
             return;
         }
 
-        const minhasAtivas = filtrarMinhasMatriculas(todasMatriculas, user);
-        const idsJaInscritos = minhasAtivas.map(m => {
-            const idMat = m.idMateria || (m.materia ? m.materia.id : 0);
-            return parseInt(idMat);
+        const minhasMatriculas = (todasMatriculas || []).filter(m => {
+            const idAlu = m.idAluno || (m.aluno ? m.aluno.id : null);
+            return parseInt(idAlu) === parseInt(user.id);
         });
 
+        const idsBloqueados = minhasMatriculas
+            .filter(m => {
+                const situacao = m.situacao;
+                return situacao === 'APROVADO' || situacao === 'CURSANDO' || situacao === 'RECUPERACAO';
+            })
+            .map(m => parseInt(m.idMateria || (m.materia ? m.materia.id : 0)))
+
         matriculasCurso.forEach(curso => {
-            const materiasDisponiveis = todasMaterias.filter(m => {
-                const pertenceAoCurso = m.nomeCurso?.trim().toLowerCase() === curso.nomeCurso?.trim().toLowerCase();
-                const naoInscrito = !idsJaInscritos.includes(parseInt(m.id));
-                const atendeBusca = m.nome.toLowerCase().includes(termoBusca);
-                
-                return pertenceAoCurso && naoInscrito && atendeBusca;
+            const materiasDisponiveis = (todasMaterias || []).filter(m => {
+                const nomeMateria = m.nome ? m.nome.toLowerCase() : "";
+                const nomeCursoMateria = m.nomeCurso ? m.nomeCurso.trim().toLowerCase() : "";
+                const nomeCursoAluno = curso.nomeCurso ? curso.nomeCurso.trim().toLowerCase() : "";
+
+                return nomeCursoMateria === nomeCursoAluno && 
+                       !idsBloqueados.includes(parseInt(m.id)) && 
+                       nomeMateria.includes(termoBusca);
             });
 
             if (materiasDisponiveis.length > 0) {
                 htmlRows += `<tr class="bg-light"><td colspan="3" class="fw-bold text-primary ps-4 small">${curso.nomeCurso}</td></tr>`;
-                
                 materiasDisponiveis.forEach(m => {
                     htmlRows += `
                         <tr>
                             <td class="ps-5 text-muted small">Disciplina da Grade</td>
                             <td class="fw-bold">${m.nome}</td>
                             <td class="text-end pe-4">
-                                <button class="btn btn-sm btn-primary" onclick="confirmarMatricula(${m.id}, '${m.nome}')">
+                                <button class="btn btn-sm btn-primary" onclick="confirmarMatricula(${m.id}, '${m.nome.replace(/'/g, "\\'")}')">
                                     <i class="fas fa-plus me-1"></i>Matricular
                                 </button>
                             </td>
@@ -352,8 +610,7 @@ async function alunoFiltrarMatricula() {
             }
         });
 
-        container.innerHTML = htmlRows || `<tr><td colspan="3" class="text-center py-4 text-muted">Nenhuma nova disciplina disponível para os seus cursos.</td></tr>`;
-
+        container.innerHTML = htmlRows || `<tr><td colspan="3" class="text-center py-4 text-muted">Nenhuma disciplina disponível.</td></tr>`;
     } catch (e) { 
         console.error(e);
         container.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Erro ao carregar catálogo.</td></tr>'; 
@@ -377,6 +634,7 @@ function confirmarMatricula(id, nome) {
                 </div>
             </div>
         </div>`;
+    
     document.getElementById('modalConfirmMatricula')?.remove();
     document.body.insertAdjacentHTML('beforeend', modalConfirm);
     new bootstrap.Modal(document.getElementById('modalConfirmMatricula')).show();
@@ -396,54 +654,39 @@ async function alunoMatricular(idMateria) {
         
         await fetchAPI('/matriculas', 'POST', payload);
         
-        mostrarToast("Inscrição confirmada com sucesso!");
+        mostrarToast("Inscrição confirmada com sucesso!", "success");
 
         setTimeout(() => {
-            alunoRenderCurso();
-        }, 500);
+            if (typeof alunoRenderCurso === 'function') alunoRenderCurso();
+        }, 600);
         
     } catch (e) { 
-        console.error("Detalhes do Erro na Matrícula:", e);
-        exibirErroVisual("Você já possui matrícula nesta disciplina ou houve um erro no servidor."); 
-    }
-}
-
-// --- FUNÇÃO DE INGRESSO ---
-async function processarIngressoCurso(nomeCurso) {
-    const user = getUser();
-    try {
-        const materias = await fetchAPI('/materias');
-        const materia = materias.find(m => m.nomeCurso === nomeCurso);
-        
-        if (!materia || !materia.idCurso) {
-            throw new Error("Grade curricular não encontrada para este curso.");
-        }
-
-        await fetchAPI('/matriculas/curso', 'POST', {
-            idAluno: parseInt(user.id),
-            idCurso: parseInt(materia.idCurso)
-        });
-        
-        bootstrap.Modal.getInstance(document.getElementById('modalConfirmCurso'))?.hide();
-        
-        mostrarToast(`Matrícula no curso de ${nomeCurso} realizada!`);
-        
-        await carregarAluno(); 
-        
-    } catch (e) {
-        exibirErroVisual("Falha ao ingressar no curso: " + e.message);
+        console.error("Erro na Matrícula:", e);
+        mostrarToast("Erro: Você já possui uma matrícula ativa nesta disciplina.", "danger"); 
     }
 }
 
 async function alunoCancelarMateria(idMatricula, nome) {
-    if (!confirm(`Deseja realmente cancelar sua matrícula na disciplina: ${nome}?`)) return;
+    if (!confirm(`Deseja realmente CANCELAR sua matrícula na disciplina: ${nome}? 
+(A disciplina sairá da sua grade atual, mas o registro permanecerá no histórico como cancelado).`)) return;
 
     try {
-        await fetchAPI(`/matriculas/${idMatricula}`, 'DELETE');
-        mostrarToast("Matrícula em disciplina cancelada.");
-        alunoRenderCurso();
+        instLoading(true);
+
+        await fetchAPI(`/matriculas/${idMatricula}`, 'PUT', {
+            situacao: 'CANCELADO'
+        });
+
+        mostrarToast(`Matrícula em ${nome} cancelada com sucesso.`, "info");
+        
+        if (typeof alunoRenderCurso === 'function') {
+            await alunoRenderCurso();
+        }
     } catch (e) {
-        exibirErroVisual("Erro ao cancelar disciplina.");
+        console.error("Erro ao cancelar disciplina:", e);
+        exibirErroVisual("Erro ao cancelar disciplina. Verifique se o status 'CANCELADO' é permitido no sistema.");
+    } finally {
+        instLoading(false);
     }
 }
 
@@ -459,10 +702,122 @@ async function alunoCancelarCurso(idMatriculaCurso, nome) {
     }
 }
 
+async function alunoRenderCatalogoCursos() {
+    atualizarMenuAtivo('Cursos Disponíveis');
+    const user = getUser();
+
+    const appContent = document.getElementById('appContent');
+    if (!appContent) return;
+
+
+    try {
+        const [cursos, minhasMatriculas] = await Promise.all([
+            fetchAPI('/cursos'),
+            fetchAPI(`/matriculas/curso/aluno/${user.id}`)
+        ]);
+
+        const idsMeusCursos = (minhasMatriculas || []).map(m => parseInt(m.idCurso));
+
+        appContent.innerHTML = `
+            <div class="row g-4 fade-in">
+                ${cursos.map(curso => {
+                    const jaInscrito = idsMeusCursos.includes(parseInt(curso.id));
+                    const matriculaObj = jaInscrito ? minhasMatriculas.find(m => parseInt(m.idCurso) === parseInt(curso.id)) : null;
+
+                    return `
+                    <div class="col-md-4">
+                        <div class="card h-100 shadow-sm border-0">
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="fw-bold">${curso.nome}</h5>
+                                <p class="text-muted small flex-grow-1">${curso.descricao || 'Graduação disponível.'}</p>
+                                ${jaInscrito ? `
+                                    <div class="d-grid gap-2">
+                                        <button class="btn btn-success disabled"><i class="fas fa-check me-2"></i>Inscrito</button>
+                                        <button class="btn btn-outline-danger btn-sm" onclick="alunoCancelarCurso(${matriculaObj?.id}, '${curso.nome}')">Cancelar Curso</button>
+                                    </div>
+                                ` : `
+                                    <button class="btn btn-primary w-100" onclick="confirmarIngresso(${curso.id}, '${curso.nome}')">Escolher Curso</button>
+                                `}
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>`;
+    } catch (e) { 
+        console.error(e);
+        appContent.innerHTML = '<div class="alert alert-danger">Erro ao carregar catálogo de cursos.</div>'; 
+    }
+}
+
+// --- FUNÇÃO DE INGRESSO ---
+function confirmarIngresso(idCurso, nomeCurso) {
+    const modalConfirm = `
+        <div class="modal fade" id="modalConfirmarCursoManual" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-body text-center p-4">
+                        <i class="fas fa-university fa-3x text-primary mb-3"></i>
+                        <h5 class="fw-bold">Confirmar Escolha?</h5>
+                        <p class="text-muted">Você deseja ingressar no curso de <b>${nomeCurso}</b>?</p>
+                        <div class="d-flex gap-2 justify-content-center mt-4">
+                            <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary px-4" id="btnConfirmarAction">Confirmar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+    document.getElementById('modalConfirmarCursoManual')?.remove();
+    document.body.insertAdjacentHTML('beforeend', modalConfirm);
+    
+    const myModal = new bootstrap.Modal(document.getElementById('modalConfirmarCursoManual'));
+    
+    document.getElementById('btnConfirmarAction').onclick = async () => {
+        myModal.hide();
+        await executarPostIngresso(idCurso, nomeCurso);
+    };
+
+    myModal.show();
+}
+
+async function executarPostIngresso(idCurso, nomeCurso) {
+    const user = getUser();
+    
+    if (!user || !user.id || !idCurso) {
+        mostrarToast("Erro: Dados do aluno ou curso não encontrados.", "danger");
+        return;
+    }
+
+    try {
+        const corpoRequisicao = { 
+            idAluno: parseInt(user.id), 
+            idCurso: parseInt(idCurso) 
+        };
+
+        await fetchAPI('/matriculas/curso', 'POST', corpoRequisicao);
+        
+        mostrarToast(`Sucesso! Você agora faz parte do curso de ${nomeCurso}.`, "success");
+        
+        if (typeof carregarAluno === 'function') await carregarAluno(); 
+        
+        setTimeout(() => {
+            if (typeof alunoRenderCurso === 'function') alunoRenderCurso();
+        }, 500);
+        
+    } catch (e) {
+        console.error("Erro no ingresso do curso:", e);
+        mostrarToast("Erro ao processar matrícula no curso.", "danger");
+    }
+}
+
 // --- PERFIL (REDEFINIÇÃO DE SENHA E DADOS) ---
 async function alunoRenderPerfil() {
     atualizarMenuAtivo('Meu Perfil');
     const me = getUser();
+
+    const appContent = document.getElementById('appContent');
+    if (!appContent) return;
     
     const inicial = me.nome ? me.nome.charAt(0).toUpperCase() : 'U';
 
@@ -557,104 +912,5 @@ async function alunoSalvarSenha(idUsuario) {
 
     } catch(e) { 
         mostrarToast("Erro ao atualizar senha. Tente novamente.", "danger");
-    }
-}
-
-async function alunoRenderCatalogoCursos() {
-    atualizarMenuAtivo('Cursos Disponíveis');
-    const user = getUser();
-
-    try {
-        const [cursos, minhasMatriculas] = await Promise.all([
-            fetchAPI('/cursos'),
-            fetchAPI(`/matriculas/curso/aluno/${user.id}`)
-        ]);
-
-        const idsMeusCursos = minhasMatriculas.map(m => parseInt(m.idCurso));
-
-        appContent.innerHTML = `
-            <div class="row g-4 fade-in">
-                ${cursos.map(curso => {
-                    const jaInscrito = idsMeusCursos.includes(parseInt(curso.id));
-                    const matriculaId = jaInscrito ? minhasMatriculas.find(m => parseInt(m.idCurso) === parseInt(curso.id)).id : null;
-
-                    return `
-                    <div class="col-md-4">
-                        <div class="card h-100 shadow-sm border-0">
-                            <div class="card-body d-flex flex-column">
-                                <h5 class="fw-bold">${curso.nome}</h5>
-                                <p class="text-muted small flex-grow-1">${curso.descricao || 'Graduação disponível.'}</p>
-                                ${jaInscrito ? `
-                                    <div class="d-grid gap-2">
-                                        <button class="btn btn-success disabled"><i class="fas fa-check me-2"></i>Inscrito</button>
-                                        <button class="btn btn-outline-danger btn-sm" onclick="alunoCancelarCurso(${matriculaId}, '${curso.nome}')">Cancelar Curso</button>
-                                    </div>
-                                ` : `
-                                    <button class="btn btn-primary w-100" onclick="confirmarIngresso(${curso.id}, '${curso.nome}')">Escolher Curso</button>
-                                `}
-                            </div>
-                        </div>
-                    </div>`;
-                }).join('')}
-            </div>`;
-    } catch (e) { appContent.innerHTML = "Erro ao carregar catálogo."; }
-}
-
-// --- FUNÇÃO DE INGRESSO ---
-function confirmarIngresso(idCurso, nomeCurso) {
-    const modalConfirm = `
-        <div class="modal fade" id="modalConfirmarCursoManual" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content border-0 shadow">
-                    <div class="modal-body text-center p-4">
-                        <i class="fas fa-university fa-3x text-primary mb-3"></i>
-                        <h5 class="fw-bold">Confirmar Escolha?</h5>
-                        <p class="text-muted">Você deseja ingressar no curso de <b>${nomeCurso}</b>?</p>
-                        <div class="d-flex gap-2 justify-content-center mt-4">
-                            <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="button" class="btn btn-primary px-4" id="btnConfirmarAction">Confirmar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>`;
-
-    document.getElementById('modalConfirmarCursoManual')?.remove();
-    document.body.insertAdjacentHTML('beforeend', modalConfirm);
-    
-    const myModal = new bootstrap.Modal(document.getElementById('modalConfirmarCursoManual'));
-    
-    document.getElementById('btnConfirmarAction').onclick = async () => {
-        myModal.hide();
-        await executarPostIngresso(idCurso, nomeCurso);
-    };
-
-    myModal.show();
-}
-
-async function executarPostIngresso(idCurso, nomeCurso) {
-    const user = getUser();
-    
-    if (!user || !user.id || !idCurso) {
-        exibirErroVisual("Erro: Dados do aluno ou curso não encontrados.");
-        return;
-    }
-
-    try {
-        const corpoRequisicao = { 
-            idAluno: parseInt(user.id), 
-            idCurso: parseInt(idCurso) 
-        };
-
-        console.log("Enviando para o Java:", corpoRequisicao); 
-
-        await fetchAPI('/matriculas/curso', 'POST', corpoRequisicao);
-        
-        mostrarToast(`Sucesso! Você agora faz parte do curso de ${nomeCurso}.`);
-        
-        await carregarAluno(); 
-        
-    } catch (e) {
-        exibirErroVisual("Erro ao processar matrícula: " + e.message);
     }
 }

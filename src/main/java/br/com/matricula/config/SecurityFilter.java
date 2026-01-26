@@ -3,7 +3,6 @@ package br.com.matricula.config;
 import java.io.IOException;
 import java.util.Collections;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -19,8 +18,11 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class SecurityFilter extends OncePerRequestFilter {
 
-    @Autowired
-    private TokenService tokenService;
+    private final TokenService tokenService;
+
+    public SecurityFilter(TokenService tokenService) {
+        this.tokenService = tokenService;
+    }
 
     @Override
     protected void doFilterInternal(@SuppressWarnings("null") HttpServletRequest request, @SuppressWarnings("null") HttpServletResponse response, @SuppressWarnings("null") FilterChain filterChain) throws ServletException, IOException {
@@ -33,7 +35,7 @@ public class SecurityFilter extends OncePerRequestFilter {
                 var role = tokenService.getClaim(token, "role"); 
 
                 if (login != null && role != null) {
-                    var authorities = Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role));
+                    var authorities = Collections.singletonList(new SimpleGrantedAuthority(role));
                     
                     var authentication = new UsernamePasswordAuthenticationToken(login, null, authorities);
                     SecurityContextHolder.getContext().setAuthentication(authentication);

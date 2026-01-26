@@ -3,7 +3,9 @@ package br.com.matricula.dto;
 import br.com.matricula.model.Matricula;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class DadosListagemMatriculaMateria {
 
@@ -13,8 +15,10 @@ public class DadosListagemMatriculaMateria {
     private Long idMateria;
     private String nomeMateria;
     private String nomeCurso;
-    private Double nota;
+    private Double mediaFinal;
+    private String situacao;
     private LocalDateTime data;
+    private List<DadosNota> notas = new ArrayList<>();
 
     public DadosListagemMatriculaMateria() {}
 
@@ -25,10 +29,26 @@ public class DadosListagemMatriculaMateria {
         this.idMateria = matricula.getMateria().getId();
         this.nomeMateria = matricula.getMateria().getNome();
         this.nomeCurso = matricula.getMateria().getCurso().getNome();
-        this.nota = Optional.ofNullable(matricula.getNota()).orElse(0.0);        
+        this.mediaFinal = matricula.getMediaFinal();
+        this.situacao = matricula.getSituacao();
         this.data = matricula.getDataMatricula();
+
+        if (matricula.getMateria().isEncerrada()) {
+            this.mediaFinal = matricula.getNotaFinal();
+            this.situacao = matricula.getStatus();
+        } else {
+            this.mediaFinal = matricula.getMediaFinal();
+            this.situacao = matricula.getSituacao();
+        }
+
+        if (matricula.getNotasLancadas() != null) {
+            this.notas = matricula.getNotasLancadas().stream()
+                    .map(DadosNota::new)
+                    .collect(Collectors.toList());
+        }
     }
 
+    // --- GETTERS E SETTERS DA CLASSE PRINCIPAL ---
     public Long getId() {return id;}
     public void setId(Long id) {this.id = id;}
     public Long getIdAluno() {return idAluno;}
@@ -41,8 +61,12 @@ public class DadosListagemMatriculaMateria {
     public void setNomeMateria(String nomeMateria) {this.nomeMateria = nomeMateria;}
     public String getNomeCurso() {return nomeCurso;}
     public void setNomeCurso(String nomeCurso) {this.nomeCurso = nomeCurso;}
-    public Double getNota() {return nota;}
-    public void setNota(Double nota) {this.nota = nota;}
+    public Double getMediaFinal() { return mediaFinal; }
+    public void setMediaFinal(Double mediaFinal) { this.mediaFinal = mediaFinal; }
+    public String getSituacao() { return situacao; }
+    public void setSituacao(String situacao) { this.situacao = situacao; }
     public LocalDateTime getData() {return data;}
     public void setData(LocalDateTime data) {this.data = data;}
+    public List<DadosNota> getNotas() { return notas; }
+    public void setNotas(List<DadosNota> notas) { this.notas = notas; }
 }

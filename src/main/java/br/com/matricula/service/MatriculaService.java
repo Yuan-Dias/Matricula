@@ -1,27 +1,60 @@
 package br.com.matricula.service;
 
-import br.com.matricula.dto.*;
-import br.com.matricula.model.*;
-import br.com.matricula.repository.*;
-import org.springframework.beans.factory.annotation.Autowired;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import br.com.matricula.dto.DadosIngressoCurso;
+import br.com.matricula.dto.DadosLancamentoNota;
+import br.com.matricula.dto.DadosListagemMatriculaCurso;
+import br.com.matricula.dto.DadosListagemMatriculaMateria;
+import br.com.matricula.dto.DadosMatricula;
+import br.com.matricula.model.ConfiguracaoAvaliacao;
+import br.com.matricula.model.Matricula;
+import br.com.matricula.model.MatriculaCurso;
+import br.com.matricula.model.Nota;
+import br.com.matricula.model.TipoUsuario;
+import br.com.matricula.model.Usuario;
+import br.com.matricula.repository.AlunoRepository;
+import br.com.matricula.repository.ConfiguracaoAvaliacaoRepository;
+import br.com.matricula.repository.CursoRepository;
+import br.com.matricula.repository.MateriaRepository;
+import br.com.matricula.repository.MatriculaCursoRepository;
+import br.com.matricula.repository.MatriculaRepository;
+import br.com.matricula.repository.NotaRepository;
 
 @Service
 public class MatriculaService {
 
-    @Autowired private MatriculaRepository matriculaRepository;
-    @Autowired private MatriculaCursoRepository matriculaCursoRepository;
-    @Autowired private AlunoRepository alunoRepository;
-    @Autowired private CursoRepository cursoRepository;
-    @Autowired private MateriaRepository materiaRepository;
-    
+    private final MatriculaRepository matriculaRepository;
+    private final MatriculaCursoRepository matriculaCursoRepository;
+    private final AlunoRepository alunoRepository;
+    private final CursoRepository cursoRepository;
+    private final MateriaRepository materiaRepository;
+    private final ConfiguracaoAvaliacaoRepository configuracaoRepository; 
+    private final NotaRepository notaRepository;
+
+    public MatriculaService(MatriculaRepository matriculaRepository,
+                            MatriculaCursoRepository matriculaCursoRepository,
+                            AlunoRepository alunoRepository,
+                            CursoRepository cursoRepository,
+                            MateriaRepository materiaRepository,
+                            ConfiguracaoAvaliacaoRepository configuracaoRepository,
+                            NotaRepository notaRepository) {
+        this.matriculaRepository = matriculaRepository;
+        this.matriculaCursoRepository = matriculaCursoRepository;
+        this.alunoRepository = alunoRepository;
+        this.cursoRepository = cursoRepository;
+        this.materiaRepository = materiaRepository;
+        this.configuracaoRepository = configuracaoRepository;
+        this.notaRepository = notaRepository;
+    }
+
     // --- MÉTODOS DE AÇÃO (POST/PUT) ---
 
     @SuppressWarnings("null")
-    // No arquivo MatriculaService.java
     @Transactional
     public void registrarIngressoCurso(DadosIngressoCurso dados) {
         var aluno = alunoRepository.findById(dados.getIdAluno())
@@ -30,7 +63,6 @@ public class MatriculaService {
         var curso = cursoRepository.findById(dados.getIdCurso())
                 .orElseThrow(() -> new RuntimeException("Curso não encontrado"));
 
-        // Validação de duplicidade
         if (matriculaCursoRepository.existsByAlunoIdAndCursoId(dados.getIdAluno(), dados.getIdCurso())) {
             throw new RuntimeException("Aluno já está neste curso.");
         }
@@ -50,85 +82,98 @@ public class MatriculaService {
         var materia = materiaRepository.findById(dados.getIdMateria())
                 .orElseThrow(() -> new RuntimeException("Matéria não encontrada"));
 
-        // 1. Buscamos o vínculo ativo do aluno com o curso daquela matéria
         var vinculoCurso = matriculaCursoRepository
                 .findByAlunoIdAndCursoId(aluno.getId(), materia.getCurso().getId())
                 .stream().findFirst()
                 .orElseThrow(() -> new RuntimeException("O aluno deve estar matriculado no curso " + materia.getCurso().getNome() + " antes."));
 
-        // 2. Validação de duplicidade na matéria
-        boolean jaMatriculado = matriculaRepository.findByAlunoLogin(aluno.getLogin()).stream()
-                .anyMatch(m -> m.getMateria().getId().equals(dados.getIdMateria()));
-        
-        if (jaMatriculado) throw new RuntimeException("Aluno já matriculado nesta disciplina.");
+        boolean possuiAtiva = matriculaRepository.findByAlunoLogin(aluno.getLogin()).stream()
+                .filter(m -> m.getMateria().getId().equals(dados.getIdMateria()))
+                .anyMatch(m -> {
+                    String statusAtual = m.getStatus(); 
+                    return statusAtual.equals("CURSANDO") || statusAtual.equals("APROVADO") || statusAtual.equals("RECUPERACAO");
+                });
 
-        // 3. Salvamos a matrícula vinculando-a ao MatriculaCurso (essencial para o Cascade)
+        if (possuiAtiva) {
+            throw new RuntimeException("Aluno já possui uma matrícula ativa ou concluída nesta disciplina.");
+        }
+
         var novaMatricula = new Matricula(aluno, materia, vinculoCurso);
         matriculaRepository.save(novaMatricula);
     }
 
+    @SuppressWarnings("null")
+    public Matricula buscarPorId(Long id) {
+        return matriculaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Matrícula não encontrada"));
+    }
+
+    /**
+     * LANÇAR NOTA (Nova Lógica para múltiplas provas)
+     */
     @SuppressWarnings("null")
     @Transactional
     public void lancarNota(DadosLancamentoNota dados, String loginProfessorLogado) {
         var matricula = matriculaRepository.findById(dados.getIdMatricula())
                 .orElseThrow(() -> new RuntimeException("Matrícula não encontrada"));
 
+        if (matricula.getMateria().isEncerrada()) {
+            throw new RuntimeException("Esta matéria já foi finalizada. Não é possível alterar notas.");
+        }
+
         if (!matricula.getMateria().getProfessor().getLogin().equals(loginProfessorLogado)) {
             throw new RuntimeException("Você não leciona esta matéria.");
         }
 
-        matricula.setNota(dados.getNota());
-        matriculaRepository.save(matricula);
+        ConfiguracaoAvaliacao configuracao = configuracaoRepository.findById(dados.getIdConfiguracao())
+                .orElseThrow(() -> new RuntimeException("Configuração de avaliação não encontrada."));
+
+        if (!configuracao.getMateria().getId().equals(matricula.getMateria().getId())) {
+             throw new RuntimeException("Esta avaliação não pertence à matéria desta matrícula.");
+        }
+
+        Optional<Nota> notaExistente = notaRepository.findByMatriculaIdAndConfiguracaoId(matricula.getId(), configuracao.getId());
+
+        if (notaExistente.isPresent()) {
+            Nota nota = notaExistente.get();
+            nota.setValor(dados.getNota());
+            notaRepository.save(nota);
+        } else {
+            Nota novaNota = new Nota(matricula, configuracao, dados.getNota());
+            notaRepository.save(novaNota);
+        }
     }
 
     // --- MÉTODOS DE LISTAGEM (GET) ---
 
-    /**
-     * Listagem Geral de Matrículas (Filtrada por perfil do usuário logado)
-     */
     public List<DadosListagemMatriculaMateria> listarMatriculas(Usuario usuario) {
         return switch (usuario.getTipo()) {
             case ALUNO -> 
                 matriculaRepository.findByAlunoLogin(usuario.getLogin())
-                        .stream()
-                        .map(DadosListagemMatriculaMateria::new)
-                        .toList();
+                        .stream().map(DadosListagemMatriculaMateria::new).toList();
             
             case PROFESSOR -> 
                 matriculaRepository.findByMateriaProfessorLogin(usuario.getLogin())
-                        .stream()
-                        .map(DadosListagemMatriculaMateria::new)
-                        .toList();
+                        .stream().map(DadosListagemMatriculaMateria::new).toList();
             
             case INSTITUICAO -> 
                 matriculaRepository.findAll()
-                        .stream()
-                        .map(DadosListagemMatriculaMateria::new)
-                        .toList();
+                        .stream().map(DadosListagemMatriculaMateria::new).toList();
         };
     }
 
-    /**
-     * Listagem Específica: Matrículas de matérias por ID do Curso
-     */
     public List<DadosListagemMatriculaMateria> listarMatriculasPorCurso(Long idCurso) {
         return matriculaRepository.findByMateriaCursoId(idCurso).stream()
                 .map(DadosListagemMatriculaMateria::new)
                 .toList();
     }
 
-    /**
-     * Listagem Específica: Ingressos em cursos por ID do Aluno
-     */
     public List<DadosListagemMatriculaCurso> listarCursosPorAluno(Long idAluno) {
         return matriculaCursoRepository.findByAlunoId(idAluno).stream()
                 .map(DadosListagemMatriculaCurso::new)
                 .toList();
     }
 
-    /**
-     * CANCELAR MATRÍCULA EM MATÉRIA (TRANCAR)
-     */
     @SuppressWarnings("null")
     @Transactional
     public void cancelarMatriculaMateria(Long id) {
@@ -138,11 +183,6 @@ public class MatriculaService {
         matriculaRepository.deleteById(id);
     }
 
-    /**
-     * CANCELAR MATRÍCULA EM CURSO
-     * Ao excluir o vínculo com o curso, as matrículas das matérias 
-     * vinculadas a esse ingresso também serão removidas se o Cascade estiver configurado.
-     */
     @SuppressWarnings("null")
     @Transactional
     public void cancelarMatriculaCurso(Long id) {
