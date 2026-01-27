@@ -1,11 +1,11 @@
 package br.com.matricula.dto;
 
-import br.com.matricula.model.Matricula;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import br.com.matricula.model.Matricula;
 
 public class DadosListagemMatriculaMateria {
 
@@ -19,6 +19,7 @@ public class DadosListagemMatriculaMateria {
     private String situacao;
     private LocalDateTime data;
     private List<DadosNota> notas = new ArrayList<>();
+    private boolean ativa = true;
 
     public DadosListagemMatriculaMateria() {}
 
@@ -69,4 +70,6 @@ public class DadosListagemMatriculaMateria {
     public void setData(LocalDateTime data) {this.data = data;}
     public List<DadosNota> getNotas() { return notas; }
     public void setNotas(List<DadosNota> notas) { this.notas = notas; }
+    public boolean isAtiva() { return ativa; }
+    public void setAtiva(boolean ativa) { this.ativa = ativa; }
 }

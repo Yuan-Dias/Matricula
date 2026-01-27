@@ -117,8 +117,8 @@ public class MatriculaService {
         var matricula = matriculaRepository.findById(dados.getIdMatricula())
                 .orElseThrow(() -> new RuntimeException("Matrícula não encontrada"));
 
-        if (matricula.getMateria().isEncerrada()) {
-            throw new RuntimeException("Esta matéria já foi finalizada. Não é possível alterar notas.");
+        if ("HISTORICO".equals(matricula.getStatus())) {
+            throw new RuntimeException("Esta matrícula já foi consolidada no histórico e não pode ser alterada.");
         }
 
         if (!matricula.getMateria().getProfessor().getLogin().equals(loginProfessorLogado)) {

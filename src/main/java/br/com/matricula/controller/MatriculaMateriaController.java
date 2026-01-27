@@ -1,17 +1,29 @@
 package br.com.matricula.controller;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
-import br.com.matricula.dto.*;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import br.com.matricula.dto.DadosLancamentoNota;
+import br.com.matricula.dto.DadosListagemMatriculaMateria;
+import br.com.matricula.dto.DadosMatricula;
 import br.com.matricula.model.Usuario;
 import br.com.matricula.repository.UsuarioRepository;
-import br.com.matricula.service.*;
+import br.com.matricula.service.MateriaService;
+import br.com.matricula.service.MatriculaService;
 import jakarta.validation.Valid;
-import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/matriculas")
@@ -43,6 +55,9 @@ public class MatriculaMateriaController {
         }
     }
 
+    /**
+     * LISTAR MATRÍCULAS ATIVAS (Deste Semestre)
+     */
     @GetMapping
     @Transactional(readOnly = true)
     public ResponseEntity<List<DadosListagemMatriculaMateria>> listar() {
@@ -51,7 +66,12 @@ public class MatriculaMateriaController {
 
         if (usuario == null) return ResponseEntity.status(401).build();
 
-        return ResponseEntity.ok(service.listarMatriculas(usuario));
+        List<DadosListagemMatriculaMateria> atuais = service.listarMatriculas(usuario)
+                .stream()
+                .filter(m -> m.isAtiva())
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(atuais);
     }
 
     @GetMapping("/curso/{idCurso}")
@@ -82,6 +102,10 @@ public class MatriculaMateriaController {
         }
     }
 
+    /**
+     * ENCERRAR SEMESTRE
+     * Agora chama o service que move alunos para HISTORICO sem bloquear a Materia
+     */
     @PutMapping("/encerrar/{idMateria}")
     @PreAuthorize("hasAuthority('PROFESSOR')")
     @Transactional
@@ -89,26 +113,25 @@ public class MatriculaMateriaController {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         try {
             materiaService.finalizarSemestre(idMateria, auth.getName());
-            return ResponseEntity.ok("Matéria encerrada e notas finais consolidadas!");
+            return ResponseEntity.ok("Semestre encerrado! Os alunos foram movidos para o histórico e a matéria está livre para o próximo período.");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
     @PutMapping("/{id}")
-@PreAuthorize("hasAuthority('INSTITUICAO') or hasAuthority('ALUNO')")
-@Transactional
-public ResponseEntity<Object> atualizarStatus(@PathVariable Long id, @RequestBody java.util.Map<String, String> corpo) {
-    try {
-        var matricula = service.buscarPorId(id); // Você precisará criar esse método simples no Service
-        if (corpo.containsKey("situacao")) {
-            // Supondo que sua model Matricula tenha o método setSituacao e aceite String ou Enum
-            matricula.setSituacao(br.com.matricula.model.StatusMatricula.valueOf(corpo.get("situacao")));
-            return ResponseEntity.ok().build();
+    @PreAuthorize("hasAuthority('INSTITUICAO') or hasAuthority('ALUNO')")
+    @Transactional
+    public ResponseEntity<Object> atualizarStatus(@PathVariable Long id, @RequestBody java.util.Map<String, String> corpo) {
+        try {
+            var matricula = service.buscarPorId(id);
+            if (corpo.containsKey("situacao")) {
+                matricula.setStatus(br.com.matricula.model.StatusMatricula.valueOf(corpo.get("situacao")));
+                return ResponseEntity.ok().build();
+            }
+            return ResponseEntity.badRequest().body("Situação não informada");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-        return ResponseEntity.badRequest().body("Situação não informada");
-    } catch (Exception e) {
-        return ResponseEntity.badRequest().body(e.getMessage());
     }
-}
 }

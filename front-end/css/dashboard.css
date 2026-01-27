@@ -211,3 +211,10 @@ body {
     background-color: rgba(14, 165, 233, 0.04); /* Um azul muito sutil */
     transition: background-color 0.2s ease;
 }
+
+.badge-status {
+    min-width: 100px;
+    display: inline-block;
+    padding: 0.5em 0.8em;
+    text-align: center;
+}

@@ -220,16 +220,21 @@ async function profVerAlunos(idMateria, nomeMateria) {
         ]);
         
         const isFinalizada = materia.encerrada === true;
-        const alunosDaTurma = matriculas.filter(mat => mat.idMateria == idMateria);
+        const alunosDaTurma = matriculas.filter(mat => mat.idMateria == idMateria && mat.isAtiva);
         const appContent = document.getElementById('appContent');
         if (!appContent) return;
 
         const configs = avaliacoes || []; 
+        
         let tableHeader = `
             <tr>
                 <th class="ps-4">Aluno</th>
-                ${configs.map(av => `<th class="text-center small">${av.descricaoNota || av.nome}<br>(P${av.peso})</th>`).join('') || '<th class="text-center">Nota Única</th>'}
-                <th class="text-center bg-light border-start">Média</th>
+                ${configs.map(av => {
+                    const nUpper = (av.descricaoNota || "").toUpperCase();
+                    const isRec = nUpper.includes("RECUPERACAO") || nUpper.includes("PROVA FINAL");
+                    return `<th class="text-center small">${av.descricaoNota || av.nome}${isRec ? '' : `<br>(P${av.peso})`}</th>`;
+                }).join('') || '<th class="text-center">Nota Única</th>'}
+                <th class="text-center bg-light border-start">Média Final</th>
                 <th class="text-center">Status</th>
                 <th class="text-end pe-4">Ação</th>
             </tr>`;
@@ -244,22 +249,28 @@ async function profVerAlunos(idMateria, nomeMateria) {
                     a.notas.forEach(n => { mapaNotas[n.idConfiguracao] = n.valor; });
                 }
                 
-                // Contagem de notas preenchidas
-                const notasPreenchidas = configs.filter(av => mapaNotas[av.id] !== undefined && mapaNotas[av.id] !== null).length;
-                const temTodasAsNotas = configs.length > 0 ? notasPreenchidas === configs.length : (a.mediaFinal !== undefined);
+                const avaliacoesRegulares = configs.filter(av => {
+                    const n = (av.descricaoNota || "").toUpperCase();
+                    return !n.includes("RECUPERACAO") && !n.includes("PROVA FINAL");
+                });
 
-                let colunasNotas = configs.length > 0 
-                    ? configs.map(av => {
-                        const valor = mapaNotas[av.id];
-                        return `<td class="text-center text-dark">${(valor !== undefined && valor !== null) ? Number(valor).toFixed(1) : '-'}</td>`;
-                    }).join('')
-                    : `<td class="text-center text-dark">${(a.mediaFinal || 0).toFixed(1)}</td>`;
+                const notasRegularesPreenchidas = avaliacoesRegulares.filter(av => 
+                    mapaNotas[av.id] !== undefined && mapaNotas[av.id] !== null
+                ).length;
+
+                const temNotasObrigatorias = avaliacoesRegulares.length > 0 
+                    ? notasRegularesPreenchidas === avaliacoesRegulares.length 
+                    : (a.mediaFinal !== undefined);
+
+                let colunasNotas = configs.map(av => {
+                    const valor = mapaNotas[av.id];
+                    return `<td class="text-center text-dark">${(valor !== undefined && valor !== null) ? Number(valor).toFixed(1) : '-'}</td>`;
+                }).join('');
 
                 let statusBadge = '';
                 const media = a.mediaFinal || 0;
 
-                // --- REGRA: STATUS CURSANDO SE FALTAR NOTA ---
-                if (!temTodasAsNotas) {
+                if (!temNotasObrigatorias) { 
                     statusBadge = '<span class="badge bg-info-subtle text-info border border-info">CURSANDO</span>';
                 } else if (media >= 7) {
                     statusBadge = '<span class="badge bg-success-subtle text-success border border-success">APROVADO</span>';
@@ -281,7 +292,7 @@ async function profVerAlunos(idMateria, nomeMateria) {
                         <td class="text-end pe-4">
                             <button class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm" 
                                 ${isFinalizada ? 'disabled' : ''}
-                                onclick='profLancarNota(${a.id}, "${a.nomeAluno}", decodeURIComponent("${notasStr}"), decodeURIComponent("${avStr}"))'>
+                                onclick='profLancarNota(${a.id}, "${a.nomeAluno}", decodeURIComponent("${notasStr}"), decodeURIComponent("${avStr}"), ${idMateria}, "${nomeMateria}")'>
                                 <i class="fas ${isFinalizada ? 'fa-lock' : 'fa-edit'} me-1"></i> Notas
                             </button>
                         </td>
@@ -295,18 +306,18 @@ async function profVerAlunos(idMateria, nomeMateria) {
                     <h4 class="m-0 fw-bold">Matéria: <span class="text-primary">${nomeMateria}</span></h4>
                     <span class="badge ${isFinalizada ? 'bg-secondary' : 'bg-success'}">
                         <i class="fas ${isFinalizada ? 'fa-lock' : 'fa-clock'} me-1"></i>
-                        ${isFinalizada ? 'ENCERRADA (NOTAS TRAVADAS)' : 'EM ANDAMENTO'}
+                        ${isFinalizada ? 'ENCERRADA' : 'EM ANDAMENTO'}
                     </span>
                 </div>
                 <div>
                     ${!isFinalizada ? `
-                        <button class="btn btn-sm btn-outline-primary me-2 fw-bold" onclick="profConfigurarAvaliacoes(${idMateria}, '${nomeMateria}')">Configurar Critérios</button>
-                        <button class="btn btn-sm btn-danger me-2 fw-bold" onclick="profFinalizarMateria(${idMateria}, '${nomeMateria}')">
-                            <i class="fas fa-check-double me-1"></i> Finalizar Matéria
+                        <button class="btn btn-sm btn-outline-primary me-2 fw-bold" onclick="profConfigurarAvaliacoes(${idMateria}, '${nomeMateria}')">
+                            <i class="fas fa-cog me-1"></i> Critérios
                         </button>
-                    ` : `
-                        <span class="text-muted small me-3"><i class="fas fa-info-circle"></i> Esta matéria foi concluída.</span>
-                    `}
+                        <button class="btn btn-sm btn-danger me-2 fw-bold" onclick="profFinalizarMateria(${idMateria}, '${nomeMateria}')">
+                            <i class="fas fa-check-double me-1"></i> Finalizar
+                        </button>
+                    ` : ''}
                     <button class="btn btn-sm btn-outline-secondary px-3" onclick="profRenderTurmas()">Voltar</button>
                 </div>
             </div>
@@ -319,6 +330,7 @@ async function profVerAlunos(idMateria, nomeMateria) {
                 </div>
             </div>`;
     } catch (error) {
+        console.error(error);
         mostrarToast("Erro ao carregar diário.", "danger");
     }
 }
@@ -327,36 +339,48 @@ async function profFinalizarMateria(idMateria, nomeMateria) {
     try {
         const [avaliacoes, matriculas] = await Promise.all([
             fetchAPI(`/materias/${idMateria}/avaliacoes`),
-            fetchAPI('/matriculas')
+            fetchAPI('/matriculas') // Este endpoint agora retorna apenas as .isAtiva()
         ]);
 
-        const alunosDaTurma = matriculas.filter(mat => mat.idMateria == idMateria);
-        
+        const alunosNoSemestre = matriculas.filter(mat => mat.idMateria == idMateria);
+
+        if (alunosNoSemestre.length === 0) {
+            return mostrarToast("Não há alunos vinculados a esta matéria no semestre atual.", "warning");
+        }
+
         const totalCriterios = (avaliacoes && avaliacoes.length > 0) ? avaliacoes.length : 1;
 
-        const pendentes = alunosDaTurma.filter(a => {
+        const pendentes = alunosNoSemestre.filter(a => {
             const notasLancadas = Array.isArray(a.notas) 
                 ? a.notas.filter(n => n.valor !== null && n.valor !== undefined).length 
-                : (a.mediaFinal !== null && a.mediaFinal !== undefined ? 1 : 0);
+                : 0;
             
             return notasLancadas < totalCriterios;
         });
 
         if (pendentes.length > 0) {
-            return mostrarToast(`Não é possível finalizar: ${pendentes.length} aluno(s) com notas pendentes.`, "danger");
+            return mostrarToast(`Erro: ${pendentes.length} aluno(s) ainda não possuem todas as notas lançadas.`, "danger");
         }
 
-        if (!confirm(`Deseja realmente FINALIZAR a matéria "${nomeMateria}"?\n\nAs notas serão travadas e o status final será gerado para os alunos.`)) return;
-
-        await fetchAPI(`/materias/${idMateria}/encerrar`, 'PUT');
-
-        mostrarToast("Matéria finalizada com sucesso!", "success");
+        const msgConfirma = `Finalizar semestre de "${nomeMateria}"?\n\n` +
+                           `Isso consolidará as notas de ${alunosNoSemestre.length} alunos e ` +
+                           `limpará a lista para o próximo período.`;
         
-        profVerAlunos(idMateria, nomeMateria);
+        if (!confirm(msgConfirma)) return;
+
+        instLoading(true);
+
+        await fetchAPI(`/matriculas/encerrar/${idMateria}`, 'PUT');
+
+        mostrarToast("Semestre finalizado com sucesso! A lista de alunos foi resetada.", "success");
+
+        setTimeout(() => profRenderTurmas(), 1000);
 
     } catch (e) {
         console.error(e);
-        mostrarToast(e.message || "Erro ao finalizar matéria.", "danger");
+        mostrarToast(e.message || "Erro ao finalizar semestre.", "danger");
+    } finally {
+        instLoading(false);
     }
 }
 
@@ -364,8 +388,15 @@ async function profConfigurarAvaliacoes(idMateria, nomeMateria) {
     try {
         const configs = await fetchAPI(`/materias/${idMateria}/avaliacoes`) || [];
 
-        let inputsHtml = configs.map((av, index) => 
-            gerarHtmlLinhaAvaliacao(index, av.id, av.nome || av.descricaoNota, av.peso)
+        const regulares = configs.filter(av => !isRec(av.nome || av.descricaoNota));
+        const recuperacoes = configs.filter(av => isRec(av.nome || av.descricaoNota));
+
+        let htmlRegulares = regulares.map((av, index) => 
+            gerarHtmlLinhaAvaliacao(index, av.id, av.nome || av.descricaoNota, av.peso, false)
+        ).join('');
+
+        let htmlRecuperacao = recuperacoes.map((av, index) => 
+            gerarHtmlLinhaAvaliacao(`rec-${index}`, av.id, av.nome || av.descricaoNota, av.peso, true)
         ).join('');
 
         const modalHTML = `
@@ -377,17 +408,21 @@ async function profConfigurarAvaliacoes(idMateria, nomeMateria) {
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <p class="text-muted small">
-                            <i class="fas fa-info-circle me-1"></i> Arraste os itens pela barrinha lateral para reordenar.<br>
-                            O peso máximo permitido por avaliação é <strong>10</strong>.
+                        <p class="text-muted small mb-2">
+                            <i class="fas fa-grip-vertical me-1"></i> Arraste as avaliações regulares para ordenar.
                         </p>
                         
                         <div id="containerAvaliacoes" class="list-group list-group-flush">
-                            ${inputsHtml}
+                            ${htmlRegulares}
+                        </div>
+
+                        <div id="containerFixo" class="mt-2 pt-2 border-top">
+                            <label class="small fw-bold text-muted mb-2">CRITÉRIO FIXO DE ENCERRAMENTO</label>
+                            ${htmlRecuperacao}
                         </div>
                         
                         <button type="button" class="btn btn-sm btn-outline-primary mt-3 w-100 dashed-border" id="btnAddCriterio">
-                            <i class="fas fa-plus me-1"></i> Adicionar Avaliação
+                            <i class="fas fa-plus me-1"></i> Adicionar Avaliação Regular
                         </button>
                     </div>
                     <div class="modal-footer">
@@ -400,17 +435,15 @@ async function profConfigurarAvaliacoes(idMateria, nomeMateria) {
 
         document.body.insertAdjacentHTML('beforeend', modalHTML);
         const modalEl = document.getElementById('modalConfigCriterios');
-        const bsModal = new bootstrap.Modal(modalEl);
-        bsModal.show();
+        new bootstrap.Modal(modalEl).show();
 
         iniciarDragAndDrop();
 
         document.getElementById('btnAddCriterio').onclick = () => {
             const container = document.getElementById('containerAvaliacoes');
             const idTemp = Date.now();
-            const novaLinha = gerarHtmlLinhaAvaliacao(idTemp, '', '', 1); // Peso padrão 1
+            const novaLinha = gerarHtmlLinhaAvaliacao(idTemp, '', '', 1, false);
             container.insertAdjacentHTML('beforeend', novaLinha);
-            
             iniciarDragAndDrop();
         };
 
@@ -422,35 +455,57 @@ async function profConfigurarAvaliacoes(idMateria, nomeMateria) {
     }
 }
 
-function gerarHtmlLinhaAvaliacao(index, id, nome, peso) {
+function gerarHtmlLinhaAvaliacao(index, id, nome, peso, fixo = false) {
     const pesoValue = (peso !== null && peso !== undefined) ? peso : 1;
+    const isRecuperacao = fixo || isRec(nome);
     
     return `
-    <div class="list-group-item d-flex align-items-center p-2 mb-1 border rounded draggable-item bg-white" 
-         draggable="true" id="row-av-${index}">
+    <div class="list-group-item d-flex align-items-center p-2 mb-1 border rounded ${fixo ? 'bg-light border-warning-subtle' : 'draggable-item bg-white'}" 
+         draggable="${!fixo}" id="row-av-${index}">
         
-        <div class="drag-handle text-muted me-3" style="cursor: grab; padding: 5px;">
-             
-            <i class="fas fa-grip-vertical fa-lg"></i>
+        <div class="drag-handle ${fixo ? 'text-warning' : 'text-muted'} me-3" style="padding: 5px;">
+            <i class="fas ${fixo ? 'fa-lock' : 'fa-grip-vertical'} fa-lg"></i>
         </div>
 
         <input type="hidden" class="av-id" value="${id || ''}">
         
         <div class="flex-grow-1 me-2">
-            <input type="text" class="form-control av-nome form-control-sm" 
+            <input type="text" class="form-control av-nome form-control-sm ${fixo ? 'fw-bold' : ''}" 
+                   ${fixo ? 'readonly' : 'oninput="revalidarExibicaoPeso(this)"'}
                    placeholder="Nome (ex: Prova 1)" value="${nome || ''}">
         </div>
         
-        <div style="width: 80px;">
+        <div class="area-peso" style="width: 80px; visibility: ${isRecuperacao ? 'hidden' : 'visible'};">
             <input type="number" class="form-control av-peso form-control-sm text-center" 
-                   placeholder="Peso" value="${pesoValue}" min="0" max="10" step="0.1">
+                   value="${isRecuperacao ? 0 : pesoValue}" min="0" max="10" step="0.1">
         </div>
         
-        <button class="btn btn-link text-danger ms-2" type="button" 
-                onclick="this.closest('.draggable-item').remove()">
+        ${!fixo ? `
+        <button class="btn btn-link text-danger ms-2" type="button" onclick="this.closest('.list-group-item').remove()">
             <i class="fas fa-trash-alt"></i>
-        </button>
+        </button>` : '<div class="ms-2" style="width: 38px"></div>'}
     </div>`;
+}
+
+// Função utilitária para checar se é recuperação
+function isRec(nome) {
+    if(!nome) return false;
+    const n = nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    return n === "RECUPERACAO" || n === "PROVA FINAL";
+}
+
+// Função auxiliar para esconder o peso em tempo real se o professor digitar "Recuperação"
+function revalidarExibicaoPeso(input) {
+    const nome = input.value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    const areaPeso = input.closest('.draggable-item').querySelector('.area-peso');
+    const inputPeso = areaPeso.querySelector('.av-peso');
+    
+    if (nome === "RECUPERACAO" || nome === "PROVA FINAL") {
+        areaPeso.style.visibility = 'hidden';
+        inputPeso.value = 0;
+    } else {
+        areaPeso.style.visibility = 'visible';
+    }
 }
 
 function iniciarDragAndDrop() {
@@ -488,43 +543,47 @@ function iniciarDragAndDrop() {
 }
 
 async function profSalvarConfiguracao(idMateria) {
-    const container = document.getElementById('containerAvaliacoes');
-    const rows = container.querySelectorAll('.draggable-item'); 
+    const containerRegulares = document.getElementById('containerAvaliacoes');
+    const containerFixo = document.getElementById('containerFixo');
+    
+    const rowsRegulares = containerRegulares ? containerRegulares.querySelectorAll('.list-group-item') : [];
+    const rowsFixas = containerFixo ? containerFixo.querySelectorAll('.list-group-item') : [];
+    const allRows = [...rowsRegulares, ...rowsFixas];
+
     const novasAvaliacoes = [];
     let erroValidacao = null;
-    let somaPesos = 0;
+    let somaPesosRegulares = 0;
 
-    rows.forEach((row) => {
+    allRows.forEach((row) => {
         if (erroValidacao) return;
 
-        const idExistente = row.querySelector('.av-id').value;
+        const idExistente = row.querySelector('.av-id')?.value;
         const nomeInput = row.querySelector('.av-nome'); 
         const pesoInput = row.querySelector('.av-peso');
         
         if (nomeInput && pesoInput) {
-            const nome = nomeInput.value.trim();
-            let peso = parseFloat(pesoInput.value);
+            let nomeOriginal = nomeInput.value.trim();
+            if (nomeOriginal === "") return;
 
+            let nomeNormalizado = nomeOriginal.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+            const isRecuperacao = (nomeNormalizado === "RECUPERACAO" || nomeNormalizado === "PROVA FINAL");
+
+            let peso = parseFloat(pesoInput.value);
             if (isNaN(peso)) peso = 0;
 
-            if (peso > 10) {
-                erroValidacao = `O peso da avaliação "${nome || 'Sem nome'}" não pode ser maior que 10.`;
+            if (peso > 10 || peso < 0) {
+                erroValidacao = `O peso da avaliação "${nomeOriginal}" deve estar entre 0 e 10.`;
                 return;
             }
 
-            if (peso < 0) {
-                erroValidacao = `O peso não pode ser negativo.`;
-                return;
-            }
-
-            if (nome !== "") {
-                novasAvaliacoes.push({ 
-                    id: idExistente ? parseInt(idExistente) : null, 
-                    descricaoNota: nome,
-                    peso: peso 
-                });
-                
-                somaPesos += peso;
+            novasAvaliacoes.push({ 
+                id: idExistente ? parseInt(idExistente) : null, 
+                descricaoNota: isRecuperacao ? nomeNormalizado : nomeOriginal,
+                peso: peso 
+            });
+            
+            if (!isRecuperacao) {
+                somaPesosRegulares += peso;
             }
         }
     });
@@ -534,19 +593,21 @@ async function profSalvarConfiguracao(idMateria) {
         return;
     }
 
-    if (Math.abs(somaPesos - 10) > 0.01) {
-        mostrarToast(`A soma dos pesos deve ser exatamente 10. Soma atual: ${somaPesos.toFixed(1)}`, "danger");
+    if (Math.abs(somaPesosRegulares - 10) > 0.01) {
+        mostrarToast(`A soma dos pesos regulares deve ser 10. Atual: ${somaPesosRegulares.toFixed(1)}`, "danger");
         return;
     }
 
     try {
+        if (typeof instLoading === 'function') instLoading(true);
+
         await fetchAPI(`/materias/${idMateria}/avaliacoes`, 'PUT', novasAvaliacoes);
 
         mostrarToast("Critérios de avaliação atualizados!", "success");
         
         const modalEl = document.getElementById('modalConfigCriterios');
         const modal = bootstrap.Modal.getInstance(modalEl);
-        modal.hide();
+        if (modal) modal.hide();
         
         const tituloEl = document.querySelector('h5.modal-title');
         const nomeMat = tituloEl ? tituloEl.innerText.replace('Critérios: ', '') : 'Matéria';
@@ -554,26 +615,33 @@ async function profSalvarConfiguracao(idMateria) {
         setTimeout(() => profVerAlunos(idMateria, nomeMat), 500);
 
     } catch (e) {
-        mostrarToast("Erro ao salvar configuração.", "danger");
-        console.error(e);
+        console.error("Erro ao salvar configuração:", e);
+        mostrarToast(e.message || "Erro ao salvar configuração.", "danger");
+    } finally {
+        if (typeof instLoading === 'function') instLoading(false);
     }
 }
 
-async function profLancarNota(idMatricula, nomeAluno, dadosNotasJson, configMateriaJson) {
+async function profLancarNota(idMatricula, nomeAluno, dadosNotasJson, configMateriaJson, idMateria, nomeMateria) {
     const dadosNotas = typeof dadosNotasJson === 'string' ? JSON.parse(dadosNotasJson || '{}') : (dadosNotasJson || {});
     const configMateria = typeof configMateriaJson === 'string' ? JSON.parse(configMateriaJson || '[]') : (configMateriaJson || []);
     const modoComplexo = configMateria.length > 0;
 
     let bodyInputs = modoComplexo ? configMateria.map(av => {
         const notaAtual = dadosNotas[av.id] ?? '';
+        const nomeUpper = (av.descricaoNota || "").toUpperCase();
+        const isRec = nomeUpper.includes("RECUPERACAO") || nomeUpper.includes("PROVA FINAL");
+        
         return `
-            <div class="mb-3">
-                <label class="form-label fw-bold small text-uppercase text-muted">
-                    ${av.descricaoNota || av.nome} <span class="text-primary">(Peso ${av.peso})</span>
+            <div class="mb-3 p-2 ${isRec ? 'bg-warning-subtle rounded border border-warning-subtle' : ''}">
+                <label class="form-label fw-bold small text-uppercase text-muted d-flex justify-content-between">
+                    <span>${av.descricaoNota || av.nome}</span>
+                    <span class="text-primary">${isRec ? 'SUBSTITUTIVA/FINAL' : '(Peso ' + av.peso + ')'}</span>
                 </label>
-                <input type="number" class="form-control nota-input" 
-                       data-id-config="${av.id}" value="${notaAtual}" 
-                       min="0" max="10" step="0.1" placeholder="0.0 a 10.0">
+                <input type="number" class="form-control nota-input ${isRec ? 'border-warning' : ''}" 
+                    data-id-config="${av.id}" value="${notaAtual}" 
+                    min="0" max="10" step="0.1" placeholder="0.0 a 10.0">
+                ${isRec ? '<div class="form-text mt-1" style="font-size: 0.7rem;">Esta nota só será considerada se a média parcial for menor que 7.0</div>' : ''}
             </div>`;
     }).join('') : `
         <div class="mb-3">
@@ -590,7 +658,9 @@ async function profLancarNota(idMatricula, nomeAluno, dadosNotasJson, configMate
                     <h5 class="modal-title"><i class="fas fa-user-edit me-2"></i>Notas: ${nomeAluno}</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body p-4"><form id="formNotas">${bodyInputs}</form></div>
+                <div class="modal-body p-4">
+                    <form id="formNotas">${bodyInputs}</form>
+                </div>
                 <div class="modal-footer bg-light">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-primary fw-bold px-4" id="btnSalvarNotaReal">
@@ -603,42 +673,47 @@ async function profLancarNota(idMatricula, nomeAluno, dadosNotasJson, configMate
 
     document.getElementById('modalLancarNota')?.remove();
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
     const modalEl = document.getElementById('modalLancarNota');
     const bsModal = new bootstrap.Modal(modalEl);
     bsModal.show();
 
     document.getElementById('btnSalvarNotaReal').onclick = async () => {
         try {
+            if (typeof instLoading === 'function') instLoading(true);
+
             if (modoComplexo) {
                 const inputs = modalEl.querySelectorAll('.nota-input');
                 for (const input of inputs) {
-                    if (input.value === '') continue;
-                    const notaNumerica = parseFloat(input.value);
-                    const idConfig = input.getAttribute('data-id-config');
+                    const notaValor = input.value;
+                    if (notaValor === '') continue;
 
                     await fetchAPI('/matriculas/notas', 'PUT', {
                         idMatricula: parseInt(idMatricula),
-                        idConfiguracao: parseInt(idConfig), // Conforme Schema DadosLancamentoNota
-                        nota: notaNumerica 
+                        idConfiguracao: parseInt(input.getAttribute('data-id-config')),
+                        nota: parseFloat(notaValor)
                     });
                 }
             } else {
-                const valUnica = parseFloat(document.getElementById('inputNotaUnica').value);
+                const valUnica = document.getElementById('inputNotaUnica').value;
                 await fetchAPI('/matriculas/notas', 'PUT', {
                     idMatricula: parseInt(idMatricula),
-                    nota: valUnica 
+                    nota: parseFloat(valUnica)
                 });
             }
 
             bsModal.hide();
-            mostrarToast("Notas atualizadas!", "success");
+            mostrarToast("Notas atualizadas com sucesso!", "success");
             
-            const matId = document.querySelector('button[onclick^="profConfigurarAvaliacoes"]')?.getAttribute('onclick').match(/\d+/)[0];
-            const matNome = document.querySelector('h4 span.text-primary')?.innerText || "";
-            if(matId) setTimeout(() => profVerAlunos(matId, matNome), 300);
+            setTimeout(() => profVerAlunos(idMateria, nomeMateria), 300);
 
         } catch (error) {
-            mostrarToast(error.message || "Erro ao salvar.", "danger");
+            console.error("Erro ao salvar notas:", error);
+            mostrarToast(error.message || "Erro ao salvar notas. Verifique os dados.", "danger");
+        } finally {
+            if (typeof instLoading === 'function') instLoading(false);
         }
     };
+
+    modalEl.addEventListener('hidden.bs.modal', () => modalEl.remove());
 }

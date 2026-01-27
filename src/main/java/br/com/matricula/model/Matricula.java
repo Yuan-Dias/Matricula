@@ -49,6 +49,8 @@ public class Matricula {
 
     private Double notaFinal;
 
+    private boolean ativa = true;
+
     public Matricula() {
     }
 
@@ -91,11 +93,14 @@ public class Matricula {
 
     @Transient
     public String getSituacao() {
+        if (this.status == StatusMatricula.HISTORICO) return "HISTORICO";
+        if (this.status == StatusMatricula.CANCELADO) return "CANCELADO";
+
         if (notasLancadas == null || notasLancadas.isEmpty()) return "CURSANDO";
 
         double somaPesosAtuais = notasLancadas.stream()
-                                    .mapToDouble(n -> n.getConfiguracao().getPeso())
-                                    .sum();
+                                        .mapToDouble(n -> n.getConfiguracao().getPeso())
+                                        .sum();
         double media = getMediaFinal();
 
         if (somaPesosAtuais >= 10.0) {
@@ -180,4 +185,10 @@ public class Matricula {
     public void setNotaFinal(Double notaFinal) {
         this.notaFinal = notaFinal;
     }   
+    public boolean isAtiva() {
+        return ativa;
+    }
+    public void setAtiva(boolean ativa) {
+        this.ativa = ativa;
+    }
 }

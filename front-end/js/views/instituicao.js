@@ -128,7 +128,11 @@ function getStatusBadge(tipo) {
     const map = {
         'INSTITUICAO': '<span class="badge bg-danger bg-opacity-75 rounded-pill px-3">INSTITUIÇÃO</span>',
         'PROFESSOR': '<span class="badge bg-warning text-dark bg-opacity-75 rounded-pill px-3">PROFESSOR</span>',
-        'ALUNO': '<span class="badge bg-info text-dark bg-opacity-75 rounded-pill px-3">ALUNO</span>'
+        'ALUNO': '<span class="badge bg-info text-dark bg-opacity-75 rounded-pill px-3">ALUNO</span>',
+        'APROVADO': '<span class="badge bg-success rounded-pill px-3">APROVADO</span>',
+        'REPROVADO': '<span class="badge bg-danger rounded-pill px-3">REPROVADO</span>',
+        'RECUPERACAO': '<span class="badge bg-warning text-dark rounded-pill px-3">RECUPERAÇÃO</span>',
+        'CURSANDO': '<span class="badge bg-primary rounded-pill px-3">CURSANDO</span>'
     };
     return map[tipo] || `<span class="badge bg-secondary">${tipo}</span>`;
 }
@@ -493,7 +497,6 @@ async function instSalvarUsuario() {
 
     if (!form.checkValidity()) {
         form.classList.add('was-validated');
-        mostrarToast("Preencha os campos obrigatórios.", "error");
         return;
     }
 
@@ -510,8 +513,11 @@ async function instSalvarUsuario() {
         let url;
         if (tipo === 'ALUNO') {
             url = id ? `/alunos/${id}` : '/alunos';
-            body.cpf = cpfInput.value.replace(/\D/g, '');
-            body.email = body.login;
+            body.cpf = cpfInput.value.replace(/\D/g, ''); 
+            
+            if (body.cpf.length !== 11) {
+                throw new Error("CPF deve conter 11 dígitos.");
+            }
         } else {
             url = id ? `/usuarios/${id}` : '/usuarios';
         }
@@ -544,27 +550,36 @@ async function instVerDesempenhoMateria(idMateria) {
         const matriculasDaMateria = todasMatriculas.filter(m => m.idMateria === idMateria);
 
         let html = `
-            <table class="table table-sm">
+            <table class="table table-sm align-middle">
                 <thead>
                     <tr>
                         <th>Aluno</th>
-                        <th>Média</th>
-                        <th>Situação</th>
+                        <th class="text-center">Média</th>
+                        <th class="text-center">Situação</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${matriculasDaMateria.map(m => `
+                    ${matriculasDaMateria.map(m => {
+                        let badgeClass = 'bg-secondary';
+                        if (m.situacao === 'APROVADO') badgeClass = 'bg-success';
+                        else if (m.situacao === 'RECUPERACAO') badgeClass = 'bg-warning text-dark';
+                        else if (m.situacao === 'REPROVADO') badgeClass = 'bg-danger';
+                        else if (m.situacao === 'CURSANDO') badgeClass = 'bg-primary';
+
+                        return `
                         <tr>
                             <td>${m.nomeAluno}</td>
-                            <td>${m.mediaFinal.toFixed(1)}</td>
-                            <td><span class="badge ${m.situacao === 'APROVADO' ? 'bg-success' : 'bg-warning'}">${m.situacao}</span></td>
-                        </tr>
-                    `).join('')}
+                            <td class="text-center fw-bold">${m.mediaFinal.toFixed(1)}</td>
+                            <td class="text-center">
+                                <span class="badge ${badgeClass}">${m.situacao}</span>
+                            </td>
+                        </tr>`;
+                    }).join('')}
                 </tbody>
-            </table>
-        `;
+            </table>`;
         
         document.getElementById('modalGenericoCorpo').innerHTML = html;
+        document.getElementById('modalGenericoTitulo').innerText = "Desempenho da Turma";
         new bootstrap.Modal(document.getElementById('modalGenerico')).show();
 
     } catch (e) {
@@ -875,74 +890,70 @@ async function instFiltrarMaterias() {
 
         container.innerHTML = materias.map(m => {
             const listaNotas = m.avaliacoes || m.notasConfig || [];
+            const isEncerrada = m.encerrada || m.status === 'FINALIZADA';
 
             let htmlNotas;
             if (listaNotas.length > 0) {
                 const cores = ['#0ea5e9', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
-
                 const barras = listaNotas.map((nota, index) => {
                     const desc = nota.descricaoNota || nota.descricao || 'Nota';
                     const peso = parseFloat(nota.peso);
                     const largura = (peso * 10); 
                     const cor = cores[index % cores.length];
-
-                    return `
-                        <div class="d-flex flex-column justify-content-center text-center" 
-                            style="width: ${largura}%; background-color: ${cor}; border-right: 1px solid #fff;"
-                            title="${desc}: Peso ${peso}">
-                        </div>
-                    `;
+                    return `<div class="d-flex flex-column" style="width: ${largura}%; background-color: ${cor}; border-right: 1px solid #fff;" title="${desc}: Peso ${peso}"></div>`;
                 }).join('');
 
                 const legendas = listaNotas.map((nota, index) => {
-                const desc = nota.descricaoNota || nota.descricao || 'Nota';
-                const peso = parseFloat(nota.peso);
-                const cor = cores[index % cores.length];
-
-                return `
-                    <div class="d-flex align-items-center me-3 mb-1" style="font-size: 0.75rem;">
-                        <span style="width: 8px; height: 8px; background-color: ${cor}; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
-                        <span class="text-muted text-truncate" style="max-width: 80px;" title="${desc}">${desc}</span>
-                        <strong class="ms-1 text-dark">(${peso})</strong>
-                    </div>
-                `;
-            }).join('');
+                    const desc = nota.descricaoNota || nota.descricao || 'Nota';
+                    const peso = parseFloat(nota.peso);
+                    const cor = cores[index % cores.length];
+                    return `
+                        <div class="d-flex align-items-center me-3 mb-1" style="font-size: 0.75rem;">
+                            <span style="width: 8px; height: 8px; background-color: ${cor}; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
+                            <span class="text-muted text-truncate" style="max-width: 80px;" title="${desc}">${desc}</span>
+                            <strong class="ms-1 text-dark">(${peso})</strong>
+                        </div>`;
+                }).join('');
 
                 htmlNotas = `
                     <div class="d-flex flex-column" style="width: 100%; max-width: 250px;">
                         <div class="d-flex rounded-3 overflow-hidden shadow-sm border mb-2" style="height: 10px; background: #e2e8f0;">
                             ${barras}
                         </div>
-                        <div class="d-flex flex-wrap">
-                            ${legendas}
-                        </div>
-                    </div>
-                `;
+                        <div class="d-flex flex-wrap">${legendas}</div>
+                    </div>`;
             } else {
                 htmlNotas = `<small class="text-muted fst-italic">Padrão (N1/N2)</small>`;
             }
 
             return `
-                <tr>
+                <tr class="${isEncerrada ? 'opacity-75' : ''}">
                     <td class="ps-3">
                         <div class="fw-bold text-dark">${m.nome}</div>
                         <div class="small text-muted">
                             <i class="fas fa-chalkboard-teacher me-1"></i> ${m.nomeProfessor || 'Sem prof.'}
                         </div>
                     </td>
-                    <td><span class="badge bg-light text-dark border">${m.nomeCurso}</span></td>
+                    <td>
+                        <span class="badge bg-light text-dark border">${m.nomeCurso}</span>
+                        <br>
+                        ${isEncerrada 
+                            ? '<span class="badge bg-danger-subtle text-danger mt-1" style="font-size:0.65rem">ENCERRADA</span>' 
+                            : '<span class="badge bg-success-subtle text-success mt-1" style="font-size:0.65rem">ATIVA</span>'}
+                    </td>
                     <td>${htmlNotas}</td>
                     <td class="text-end pe-3">
                         <button class="btn btn-sm btn-outline-info border-0 me-1" 
                                 title="Ver Notas/Desempenho" onclick="instVerAlunos(${m.id}, '${m.nome}')">
                             <i class="fas fa-eye"></i>
                         </button>
-                        <button class="btn btn-sm ${m.encerrada ? 'btn-success' : 'btn-outline-warning'} border-0 me-1" 
-                                title="${m.encerrada ? 'Matéria Encerrada' : 'Encerrar Matéria'}" 
-                                onclick="instFinalizarMateria(${m.id})" ${m.encerrada ? 'disabled' : ''}>
-                            <i class="fas ${m.encerrada ? 'fa-check-double' : 'fa-lock'}"></i>
+                        <button class="btn btn-sm ${isEncerrada ? 'btn-success' : 'btn-outline-warning'} border-0 me-1" 
+                                title="${isEncerrada ? 'Matéria Encerrada' : 'Encerrar Matéria'}" 
+                                onclick="instFinalizarMateria(${m.id}, '${m.nome}')" ${isEncerrada ? 'disabled' : ''}>
+                            <i class="fas ${isEncerrada ? 'fa-check-double' : 'fa-lock'}"></i>
                         </button>
-                        <hr class="my-1 opacity-25"> <button class="btn btn-sm btn-outline-primary border-0 me-1" 
+                        <hr class="my-1 opacity-25"> 
+                        <button class="btn btn-sm btn-outline-primary border-0 me-1" 
                                 title="Editar" onclick="instPrepararEdicaoMateria(${m.id})">
                             <i class="fas fa-edit"></i>
                         </button>
@@ -951,8 +962,8 @@ async function instFiltrarMaterias() {
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
-                </tr>
-            `}).join('');
+                </tr>`;
+        }).join('');
     } catch(e) { 
         console.error(e);
         container.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Erro ao carregar dados.</td></tr>'; 
@@ -1092,7 +1103,9 @@ async function instSalvarMateria() {
         return;
     }
 
-    const id = document.getElementById('materiaId')?.value;
+    const inputId = document.getElementById('materiaId')?.value;
+    const idExistente = inputId ? parseInt(inputId) : null;
+    
     const nome = document.getElementById('materiaNome').value;
     const cursoId = document.getElementById('materiaCursoSelect').value;
     const descricao = document.getElementById('materiaDescricao').value;
@@ -1105,20 +1118,14 @@ async function instSalvarMateria() {
     notasRows.forEach(row => {
         const desc = row.querySelector('.input-desc-nota').value;
         const peso = parseFloat(row.querySelector('.input-peso-nota').value);
-        
         if(desc && !isNaN(peso)) {
-            notasConfig.push({
-                descricaoNota: desc,
-                peso: peso
-            });
+            notasConfig.push({ descricaoNota: desc, peso: peso });
             pesoTotal += peso;
         }
     });
 
-    if (notasConfig.length > 0 && Math.abs(pesoTotal - 10) > 0.1) {
-         if(!confirm(`Atenção: A soma dos pesos é ${pesoTotal} (o ideal é 10.0). Deseja salvar mesmo assim?`)) {
-             return;
-         }
+    if (notasConfig.length > 0 && Math.abs(pesoTotal - 10) > 0.01) {
+         if(!confirm(`Atenção: A soma dos pesos é ${pesoTotal.toFixed(1)}. Deseja salvar mesmo assim?`)) return;
     }
 
     try {
@@ -1129,26 +1136,47 @@ async function instSalvarMateria() {
             idProfessor: idProfessor ? parseInt(idProfessor) : null
         };
 
-        if (id) bodyMateria.id = id;
+        if (idExistente) bodyMateria.id = idExistente;
 
-        const responseMateria = await fetchAPI(id ? `/materias/${id}` : '/materias', id ? 'PUT' : 'POST', bodyMateria);
+        const responseMateria = await fetchAPI(
+            idExistente ? `/materias/${idExistente}` : '/materias', 
+            idExistente ? 'PUT' : 'POST', 
+            bodyMateria
+        );
         
-        const finalId = id ? id : (responseMateria.id || responseMateria); 
+        let finalId = idExistente;
+        
+        if (!finalId && responseMateria) {
+            if (typeof responseMateria === 'object') {
+                finalId = responseMateria.id || responseMateria.ID;
+            } else if (!isNaN(responseMateria)) {
+                finalId = responseMateria;
+            }
+        }
+
+        if (!finalId && !idExistente) {
+            console.log("Backend não retornou ID. Buscando última matéria criada...");
+            const todasMaterias = await fetchAPI('/materias');
+            const achada = todasMaterias.find(m => m.nome === nome && m.idCurso == cursoId);
+            if (achada) finalId = achada.id;
+        }
 
         if (finalId) {
             await fetchAPI(`/materias/${finalId}/avaliacoes`, 'PUT', notasConfig);
+        } else {
+            throw new Error("Matéria salva, mas não conseguimos identificar o ID para salvar os pesos.");
         }
 
         const modalEl = document.getElementById('modalMateria');
-        bootstrap.Modal.getInstance(modalEl)?.hide();
-        form.classList.remove('was-validated'); 
-
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+        
         instRenderMaterias();
-        mostrarToast("Matéria e critérios de avaliação salvos com sucesso!");
+        mostrarToast("Matéria e critérios de avaliação salvos!", "success");
 
     } catch(e) {
-        console.error(e);
-        exibirErroVisual("Erro ao salvar: " + e.message);
+        console.error("Erro no processo:", e);
+        mostrarToast(e.message, "danger");
     }
 }
 
@@ -1165,6 +1193,8 @@ async function instDeletarMateria(id) {
 }
 
 async function instFinalizarMateria(idMateria, nomeMateria) {
+    const nomeExibicao = nomeMateria || "esta matéria";
+
     try {
         const [avaliacoes, matriculas] = await Promise.all([
             fetchAPI(`/materias/${idMateria}/avaliacoes`),
@@ -1172,24 +1202,43 @@ async function instFinalizarMateria(idMateria, nomeMateria) {
         ]);
 
         const alunosDaTurma = matriculas.filter(mat => mat.idMateria == idMateria);
+        
+        if (alunosDaTurma.length === 0) {
+            return mostrarToast("Não há alunos matriculados para finalizar esta matéria.", "warning");
+        }
+
         const totalCriterios = avaliacoes.length;
 
         const pendentes = alunosDaTurma.filter(a => {
-            const notasLancadas = Array.isArray(a.notas) ? a.notas.filter(n => n.valor !== null && n.valor !== undefined).length : 0;
+            const notasLancadas = Array.isArray(a.notas) 
+                ? a.notas.filter(n => n.valor !== null && n.valor !== undefined).length 
+                : 0;
             return notasLancadas < totalCriterios;
         });
 
         if (pendentes.length > 0) {
-            return mostrarToast(`Não é possível finalizar: ${pendentes.length} aluno(s) com notas pendentes.`, "danger");
+            return mostrarToast(`Impossível finalizar: ${pendentes.length} aluno(s) ainda não possuem todas as notas lançadas.`, "danger");
         }
 
-        if (!confirm(`Deseja realmente FINALIZAR a matéria "${nomeMateria}"?`)) return;
+        if (!confirm(`Confirma o fechamento de "${nomeExibicao}"?\n\nAs médias serão calculadas e a matéria será bloqueada para novas notas.`)) return;
 
-        await fetchAPI(`/matriculas/encerrar/${idMateria}`, 'PUT', {});
-        mostrarToast("Matéria finalizada com sucesso!");
-        instRenderMaterias();
+        const resultado = await fetchAPI(`/matriculas/encerrar/${idMateria}`, 'PUT', {});
+        
+        mostrarToast("Matéria encerrada e médias processadas com sucesso!", "success");
+        
+        if (typeof instRenderMaterias === 'function') {
+            instRenderMaterias();
+        } else {
+            location.reload();
+        }
+
     } catch (e) {
-        mostrarToast(e.message || "Erro ao finalizar matéria.", "danger");
+        console.error("Erro detalhado:", e);
+        const msgFriendly = e.message.includes("rollback") 
+            ? "Erro no servidor ao processar médias. Verifique se todos os pesos das notas somam 10." 
+            : e.message;
+            
+        mostrarToast(msgFriendly || "Erro interno ao finalizar matéria.", "danger");
     }
 }
 
@@ -1215,7 +1264,7 @@ async function instVerAlunos(idMateria, nomeMateria) {
             </tr>`;
 
         let tableBody = alunosDaTurma.length === 0 
-            ? '<tr><td colspan="10" class="text-center py-5 text-muted">Nenhum aluno matriculado.</td></tr>'
+            ? '<tr><td colspan="10" class="text-center py-5 text-muted">Nenhum aluno matriculado nesta disciplina.</td></tr>'
             : alunosDaTurma.map(a => {
                 const mapaNotas = {};
                 if (Array.isArray(a.notas)) {
@@ -1224,15 +1273,20 @@ async function instVerAlunos(idMateria, nomeMateria) {
                 
                 const notasPreenchidas = configs.filter(av => mapaNotas[av.id] !== undefined && mapaNotas[av.id] !== null).length;
                 const temTodasAsNotas = configs.length > 0 ? notasPreenchidas === configs.length : (a.mediaFinal !== undefined);
-                const media = a.mediaFinal || 0;
+                
+                const media = (a.mediaFinal !== undefined && a.mediaFinal !== null) ? parseFloat(a.mediaFinal) : 0;
 
                 let statusBadge = '';
-                if (!temTodasAsNotas) {
-                    statusBadge = '<span class="badge bg-info-subtle text-info border">CURSANDO</span>';
+                if (!temTodasAsNotas && !isFinalizada) {
+                    statusBadge = '<span class="badge bg-info-subtle text-info border border-info">CURSANDO</span>';
                 } else {
-                    const cor = media >= 7 ? 'success' : (media >= 5 ? 'warning' : 'danger');
-                    const texto = media >= 7 ? 'APROVADO' : (media >= 5 ? 'RECUPERAÇÃO' : 'REPROVADO');
-                    statusBadge = `<span class="badge bg-${cor}-subtle text-${cor} border border-${cor}">${texto}</span>`;
+                    if (media >= 7.0) {
+                        statusBadge = '<span class="badge bg-success-subtle text-success border border-success">APROVADO</span>';
+                    } else if (media >= 5.0) {
+                        statusBadge = '<span class="badge bg-warning-subtle text-warning border border-warning">RECUPERAÇÃO</span>';
+                    } else {
+                        statusBadge = '<span class="badge bg-danger-subtle text-danger border border-danger">REPROVADO</span>';
+                    }
                 }
 
                 return `
@@ -1271,7 +1325,8 @@ async function instVerAlunos(idMateria, nomeMateria) {
                 </div>
             </div>`;
     } catch (error) {
-        mostrarToast("Erro ao carregar diário.", "danger");
+        console.error(error);
+        mostrarToast("Erro ao carregar diário de classe.", "danger");
     }
 }
 

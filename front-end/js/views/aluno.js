@@ -97,7 +97,6 @@ async function carregarAluno() {
 // --- DASHBOARD (HOME) ---
 async function alunoRenderHome() {
     atualizarMenuAtivo('Início');
-
     const appContent = document.getElementById('appContent');
     if (!appContent) return;
 
@@ -109,21 +108,21 @@ async function alunoRenderHome() {
         
         const minhas = matriculas ? matriculas.filter(m => {
             const idAlu = m.idAluno || (m.aluno ? m.aluno.id : null);
-            const isMeuId = parseInt(idAlu) === parseInt(user.id);
-            const isAtiva = !['HISTORICO', 'CANCELADO'].includes(m.situacao);
-            return isMeuId && isAtiva;
+            return parseInt(idAlu) === parseInt(user.id) && !['HISTORICO', 'CANCELADO'].includes(m.situacao);
         }) : [];
 
-        const totalMateriasAtivas = minhas.length;
+        const totalMateriasAtivas = minhas.filter(m => m.situacao === 'CURSANDO' || m.situacao === 'RECUPERACAO').length;
         
         let somaNotas = 0;
         let materiasParaMedia = 0;
         
         minhas.forEach(m => {
-            const mf = parseFloat(m.mediaFinal);
-            if (!isNaN(mf) && mf > 0) {
-                somaNotas += mf;
-                materiasParaMedia++;
+            if (m.situacao === 'APROVADO' || m.situacao === 'REPROVADO') {
+                const mf = parseFloat(m.mediaFinal);
+                if (!isNaN(mf)) {
+                    somaNotas += mf;
+                    materiasParaMedia++;
+                }
             }
         });
         
@@ -135,13 +134,13 @@ async function alunoRenderHome() {
                     <div class="card bg-primary text-white shadow-sm border-0" style="border-radius: 15px;">
                         <div class="card-body p-4">
                             <h2 class="fw-bold mb-1">Olá, ${user.nome}!</h2>
-                            <p class="mb-0 opacity-75">Bem-vindo ao seu painel acadêmico.</p>
+                            <p class="mb-0 opacity-75">Seu progresso acadêmico consolidado.</p>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="row g-4 mb-4 fade-in">
-                ${cardStat('MÉDIA GERAL (CR)', cr, 'fa-chart-line', 'success')}
+                ${cardStat('ÍNDICE DE RENDIMENTO (CR)', cr, 'fa-chart-line', 'success')}
                 ${cardStat('DISCIPLINAS ATIVAS', totalMateriasAtivas, 'fa-book', 'warning')}
             </div>
             <div class="card border-0 shadow-sm p-4 bg-white rounded-3 fade-in text-center">
@@ -200,29 +199,30 @@ async function alunoRenderCurso() {
             const materiasPendentes = [];
 
             gradeDoCurso.forEach(materiaGrade => {
-                const historicoMateria = minhasMatriculasDisciplinas.filter(mm => {
+                const registrosAtivos = minhasMatriculasDisciplinas.filter(mm => {
                     const idMateriaRef = mm.idMateria || (mm.materia ? mm.materia.id : null);
-                    return parseInt(idMateriaRef) === parseInt(materiaGrade.id) && mm.status !== 'HISTORICO';
+                    return parseInt(idMateriaRef) === parseInt(materiaGrade.id) && 
+                        !['HISTORICO', 'CANCELADO'].includes(mm.status);
                 });
 
-                const aprovacao = historicoMateria.find(m => m.situacao === 'APROVADO');
-                const matriculaFinalizada = historicoMateria.find(m => m.status === 'FINALIZADA');
-                const matriculaEmAndamento = historicoMateria.find(m => m.status === 'CURSANDO');
+                const aprovada = registrosAtivos.find(m => m.situacao === 'APROVADO');
+                const cursando = registrosAtivos.find(m => m.situacao === 'CURSANDO' || m.situacao === 'RECUPERACAO');
+                const reprovada = registrosAtivos.find(m => m.situacao === 'REPROVADO');
 
-                if (aprovacao) {
-                    materiasConcluidas.push({ ...materiaGrade, nota: aprovacao.mediaFinal, status: 'APROVADO' });
-                } else if (matriculaFinalizada && (detalhesReprovacao = historicoMateria.find(m => m.situacao === 'REPROVADO'))) {
-                    materiasPendentes.push({
-                        ...materiaGrade,
-                        status: 'REPROVADO',
-                        nota: parseFloat(detalhesReprovacao.mediaFinal),
-                        idHistorico: detalhesReprovacao.id 
-                    });
-                } else if (matriculaEmAndamento) {
+                if (aprovada) {
+                    materiasConcluidas.push({ ...materiaGrade, nota: aprovada.mediaFinal, status: 'APROVADO' });
+                } else if (cursando) {
                     materiasPendentes.push({
                         ...materiaGrade,
                         status: 'CURSANDO',
-                        idHistorico: matriculaEmAndamento.id
+                        idHistorico: cursando.id
+                    });
+                } else if (reprovada) {
+                    materiasPendentes.push({
+                        ...materiaGrade,
+                        status: 'REPROVADO',
+                        nota: parseFloat(reprovada.mediaFinal || 0),
+                        idHistorico: reprovada.id 
                     });
                 } else {
                     materiasPendentes.push({ ...materiaGrade, status: 'DISPONIVEL' });
@@ -303,14 +303,16 @@ async function alunoRefazerMateria(idMateria, idMatriculaAntiga, nomeMateria) {
         instLoading(true);
         const user = getUser();
 
+        // 1. Move a antiga para Histórico
         await fetchAPI(`/matriculas/${idMatriculaAntiga}`, 'PUT', {
             situacao: 'HISTORICO'
         });
 
+        // 2. Cria a nova como CURSANDO
         const payload = { 
             idAluno: parseInt(user.id), 
             idMateria: parseInt(idMateria),
-            situacao: 'CURSANDO',
+            situacao: 'CURSANDO', // Força o status correto
             nota1: 0,
             nota2: 0,
             mediaFinal: 0
@@ -320,15 +322,15 @@ async function alunoRefazerMateria(idMateria, idMatriculaAntiga, nomeMateria) {
         
         if(response) {
             mostrarToast(`Sucesso! Nova matrícula em ${nomeMateria} iniciada.`, "success");
+            // Pequeno delay para o banco processar antes do refresh
             setTimeout(() => {
-                if (typeof alunoRenderCurso === 'function') alunoRenderCurso();
-                if (typeof alunoRenderMatricula === 'function') alunoRenderMatricula();
+                alunoRenderCurso(); 
             }, 800);
         }
 
     } catch (error) {
         console.error("Erro ao refazer matéria:", error);
-        mostrarToast("Erro: Verifique se o sistema permitiu mover a nota antiga para o Histórico.", "danger");
+        mostrarToast("Erro ao processar re-matrícula.", "danger");
     } finally {
         instLoading(false);
     }
@@ -369,62 +371,58 @@ async function alunoFiltrarDisciplinas() {
         let minhas = (todasMatriculas || []).filter(m => {
             const idAlu = m.idAluno || (m.aluno ? m.aluno.id : null);
             const isMeuId = parseInt(idAlu) === parseInt(user.id);
-            const isVisivel = !['HISTORICO', 'CANCELADO'].includes(m.situacao);
-            return isMeuId && isVisivel;
+            const situacao = (m.situacao || "").toUpperCase();
+            return isMeuId && !['HISTORICO', 'CANCELADO'].includes(situacao);
         });
         
         if (termo) {
             minhas = minhas.filter(m => 
-                (m.nomeMateria && m.nomeMateria.toLowerCase().includes(termo)) ||
-                (m.nomeCurso && m.nomeCurso.toLowerCase().includes(termo))
+                (m.nomeMateria && m.nomeMateria.toLowerCase().includes(termo))
             );
         }
 
         if(minhas.length === 0) {
-            container.innerHTML = '<div class="col-12 text-center p-5 text-muted">Nenhuma disciplina encontrada.</div>';
+            container.innerHTML = '<div class="col-12 text-center p-5 text-muted">Nenhuma disciplina ativa encontrada.</div>';
             return;
         }
 
         container.innerHTML = minhas.map(m => {
-            const media = (m.mediaFinal !== null) ? parseFloat(m.mediaFinal) : 0;
-            
-            const situacaoReal = m.situacao; 
+            const media = parseFloat(m.mediaFinal || 0);
+            const idMateria = m.idMateria || (m.materia ? m.materia.id : 0);
 
             const configStatus = {
                 'APROVADO':    { classe: 'success',           texto: 'Aprovado',    icone: 'fa-check-circle' },
                 'REPROVADO':   { classe: 'danger',            texto: 'Reprovado',   icone: 'fa-times-circle' },
                 'CURSANDO':    { classe: 'info text-white',   texto: 'Em Curso',    icone: 'fa-pencil-alt' },
-                'RECUPERACAO': { classe: 'warning text-dark', texto: 'Recuperação', icone: 'fa-exclamation-triangle' }
+                'RECUPERACAO': { classe: 'warning text-dark', texto: 'Recuperação', icone: 'fa-life-ring' }
             };
 
-            const status = configStatus[situacaoReal] || configStatus['CURSANDO'];
-
-            const corNota = (media >= 7) ? 'text-success' : (media >= 5 ? 'text-warning' : 'text-danger');
+            const statusLayout = configStatus[m.situacao] || configStatus['CURSANDO'];
+            const corNota = (m.situacao === 'RECUPERACAO') ? 'text-warning' : (media >= 7 ? 'text-success' : 'text-danger');
 
             return `
             <div class="col-md-6 col-lg-4 fade-in">
-                <div class="card h-100 border-0 shadow-sm border-top border-4 border-${status.classe.split(' ')[0]}">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-start mb-3">
-                            <div>
-                                <small class="text-muted fw-bold small text-uppercase">${m.nomeCurso || 'Curso'}</small>
-                                <h5 class="fw-bold text-dark mt-1">${m.nomeMateria}</h5>
+                <div class="card h-100 border-0 shadow-sm border-top border-4 border-${statusLayout.classe.split(' ')[0]}">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-3" style="min-height: 60px;">
+                            <div style="flex: 1; margin-right: 10px;">
+                                <small class="text-muted fw-bold small text-uppercase" style="font-size: 0.65rem;">${m.nomeCurso || 'Curso'}</small>
+                                <h5 class="fw-bold text-dark mt-1 mb-0" style="font-size: 1rem; line-height: 1.2;">${m.nomeMateria}</h5>
                             </div>
-                            <span class="badge bg-${status.classe} px-2 py-2 rounded-pill shadow-sm" style="font-size: 0.7rem;">
-                                <i class="fas ${status.icone} me-1"></i>${status.texto}
+                            <span class="badge bg-${statusLayout.classe} rounded-pill shadow-sm d-flex align-items-center justify-content-center" 
+                                  style="font-size: 0.65rem; padding: 6px 10px; white-space: nowrap; flex-shrink: 0;">
+                                <i class="fas ${statusLayout.icone} me-1"></i>${statusLayout.texto.toUpperCase()}
                             </span>
                         </div>
                         
-                        <div class="bg-light rounded p-3 d-flex justify-content-between align-center mb-3">
-                            <span class="small text-muted fw-bold">${situacaoReal === 'CURSANDO' ? 'MÉDIA ATUAL' : 'MÉDIA FINAL'}</span>
-                            <span class="h4 mb-0 fw-bold ${corNota}">
-                                ${media.toFixed(1)}
-                            </span>
+                        <div class="bg-light rounded p-3 d-flex justify-content-between align-items-center mb-3 mt-auto">
+                            <span class="small text-muted fw-bold">MÉDIA ${m.situacao === 'APROVADO' ? 'FINAL' : 'ATUAL'}</span>
+                            <span class="h4 mb-0 fw-bold ${corNota}">${media.toFixed(1)}</span>
                         </div>
 
                         <button class="btn btn-sm btn-outline-primary w-100 rounded-pill fw-bold" 
-                                onclick="alunoVerDetalhesNotas(${m.idMateria}, '${m.nomeMateria}')">
-                            <i class="fas fa-list-ol me-1"></i> Ver Detalhes
+                                onclick="alunoVerDetalhesNotas(${idMateria}, '${m.nomeMateria.replace(/'/g, "\\'")}')">
+                            <i class="fas fa-search me-1"></i> Detalhes das Notas
                         </button>
                     </div>
                 </div>
@@ -432,16 +430,18 @@ async function alunoFiltrarDisciplinas() {
         }).join('');
             
     } catch (e) { 
-        console.error('Erro ao filtrar disciplinas:', e);
+        console.error(e);
         if (container) container.innerHTML = '<div class="alert alert-danger col-12">Erro ao carregar notas.</div>'; 
     }
 }
 
 // Função auxiliar simples para cor da nota na tabela
 function getNotaColor(valor) {
-    if (valor >= 6) return 'text-success';
-    if (valor < 6) return 'text-danger';
-    return 'text-dark';
+    if (valor === undefined || valor === null || valor === '-') return 'text-muted';
+    const n = parseFloat(valor);
+    if (n >= 7) return 'text-success';
+    if (n >= 5) return 'text-warning';
+    return 'text-danger';
 }
 
 async function alunoVerDetalhesNotas(idMateria, nomeMateria) {
@@ -466,33 +466,70 @@ async function alunoVerDetalhesNotas(idMateria, nomeMateria) {
             detalhes.notas.forEach(n => { mapaNotas[n.idConfiguracao] = n.valor; });
         }
 
+        // Ordenar avaliações: Regulares primeiro, Recuperação por último
+        const avOrdenadas = [...avaliacoes].sort((a, b) => {
+            const isARec = isRecuperacaoNome(a.descricaoNota || a.nome);
+            const isBRec = isRecuperacaoNome(b.descricaoNota || b.nome);
+            return isARec - isBRec;
+        });
+
         const modalHtml = `
             <div class="modal fade" id="modalDetalhesNotas" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content border-0 shadow-lg">
-                        <div class="modal-header bg-light">
-                            <h5 class="modal-title fw-bold">${nomeMateria}</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title fw-bold"><i class="fas fa-graduation-cap me-2"></i>${nomeMateria}</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
-                        <div class="modal-body p-4">
+                        <div class="modal-body p-0">
                             <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr><th>Avaliação</th><th class="text-center">Nota</th></tr>
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th class="ps-4">Avaliação</th>
+                                            <th class="text-center">Peso</th>
+                                            <th class="text-center pe-4">Nota</th>
+                                        </tr>
                                     </thead>
                                     <tbody>
-                                        ${avaliacoes.map(av => `
-                                            <tr>
-                                                <td>${av.descricaoNota || av.nome} <small>(Peso ${av.peso})</small></td>
-                                                <td class="text-center fw-bold">${mapaNotas[av.id] !== undefined ? Number(mapaNotas[av.id]).toFixed(1) : '-'}</td>
-                                            </tr>
-                                        `).join('')}
-                                        <tr class="table-primary">
-                                            <td class="fw-bold">MÉDIA FINAL</td>
-                                            <td class="text-center fw-bold">${parseFloat(detalhes.mediaFinal || 0).toFixed(1)}</td>
-                                        </tr>
+                                        ${avOrdenadas.map(av => {
+                                            const nomeOriginal = av.descricaoNota || av.nome || "";
+                                            const isRec = isRecuperacaoNome(nomeOriginal);
+                                            const nota = mapaNotas[av.id];
+                                            const notaFormatada = nota !== undefined ? Number(nota).toFixed(1) : '-';
+                                            
+                                            return `
+                                            <tr class="${isRec ? 'table-warning-subtle' : ''}">
+                                                <td class="ps-4 align-middle">
+                                                    <span class="${isRec ? 'fw-bold text-dark' : ''}">
+                                                        ${isRec ? '<i class="fas fa-redo me-2 text-warning"></i>' : ''}
+                                                        ${nomeOriginal}
+                                                    </span>
+                                                </td>
+                                                <td class="text-center align-middle text-muted small">
+                                                    ${isRec ? '<span class="badge bg-warning text-dark">Substitutiva</span>' : av.peso}
+                                                </td>
+                                                <td class="text-center align-middle fw-bold ${getNotaColor(nota)} pe-4" style="font-size: 1.1rem;">
+                                                    ${notaFormatada}
+                                                </td>
+                                            </tr>`;
+                                        }).join('')}
                                     </tbody>
+                                    <tfoot>
+                                        <tr class="table-dark text-white">
+                                            <td colspan="2" class="ps-4 fw-bold text-uppercase">Média Final</td>
+                                            <td class="text-center fw-bold pe-4" style="font-size: 1.2rem;">
+                                                ${parseFloat(detalhes.mediaFinal || 0).toFixed(1)}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
+                            </div>
+                            <div class="p-3 bg-light border-top">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i> 
+                                    A média para aprovação direta é <strong>7.0</strong>. Entre 5.0 e 6.9 o aluno está em recuperação.
+                                </small>
                             </div>
                         </div>
                     </div>
@@ -503,10 +540,17 @@ async function alunoVerDetalhesNotas(idMateria, nomeMateria) {
         document.body.insertAdjacentHTML('beforeend', modalHtml);
         new bootstrap.Modal(document.getElementById('modalDetalhesNotas')).show();
     } catch (e) {
+        console.error(e);
         mostrarToast("Erro ao carregar detalhes.", "danger");
     } finally {
         instLoading(false);
     }
+}
+
+// Função auxiliar para evitar repetição de lógica
+function isRecuperacaoNome(nome) {
+    const n = (nome || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    return n.includes("RECUPERACAO") || n.includes("PROVA FINAL");
 }
 
 // --- MATRÍCULA ONLINE (RESTRITO AO CURSO) ---
@@ -566,27 +610,24 @@ async function alunoFiltrarMatricula() {
         ]);
 
         if (!matriculasCurso || matriculasCurso.length === 0) {
-            container.innerHTML = '<tr><td colspan="3" class="text-center py-4">Se matricule em um curso primeiro.</td></tr>';
+            container.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-muted"><i class="fas fa-info-circle me-2"></i>Você precisa escolher um curso no menu "Cursos Disponíveis" primeiro.</td></tr>';
             return;
         }
 
-        const minhasMatriculas = (todasMatriculas || []).filter(m => {
-            const idAlu = m.idAluno || (m.aluno ? m.aluno.id : null);
-            return parseInt(idAlu) === parseInt(user.id);
-        });
-
-        const idsBloqueados = minhasMatriculas
+        const idsBloqueados = (todasMatriculas || [])
             .filter(m => {
-                const situacao = m.situacao;
-                return situacao === 'APROVADO' || situacao === 'CURSANDO' || situacao === 'RECUPERACAO';
+                const idAlu = m.idAluno || (m.aluno ? m.aluno.id : null);
+                const isMeu = parseInt(idAlu) === parseInt(user.id);
+                const statusBloqueado = ['APROVADO', 'CURSANDO', 'RECUPERACAO'].includes(m.situacao);
+                return isMeu && statusBloqueado;
             })
-            .map(m => parseInt(m.idMateria || (m.materia ? m.materia.id : 0)))
+            .map(m => parseInt(m.idMateria || (m.materia ? m.materia.id : 0)));
 
         matriculasCurso.forEach(curso => {
             const materiasDisponiveis = (todasMaterias || []).filter(m => {
-                const nomeMateria = m.nome ? m.nome.toLowerCase() : "";
-                const nomeCursoMateria = m.nomeCurso ? m.nomeCurso.trim().toLowerCase() : "";
-                const nomeCursoAluno = curso.nomeCurso ? curso.nomeCurso.trim().toLowerCase() : "";
+                const nomeMateria = (m.nome || "").toLowerCase();
+                const nomeCursoMateria = (m.nomeCurso || "").trim().toLowerCase();
+                const nomeCursoAluno = (curso.nomeCurso || "").trim().toLowerCase();
 
                 return nomeCursoMateria === nomeCursoAluno && 
                        !idsBloqueados.includes(parseInt(m.id)) && 
@@ -594,14 +635,14 @@ async function alunoFiltrarMatricula() {
             });
 
             if (materiasDisponiveis.length > 0) {
-                htmlRows += `<tr class="bg-light"><td colspan="3" class="fw-bold text-primary ps-4 small">${curso.nomeCurso}</td></tr>`;
+                htmlRows += `<tr class="table-light"><td colspan="3" class="fw-bold text-primary ps-4 small"><i class="fas fa-graduation-cap me-2"></i>CURSO: ${curso.nomeCurso}</td></tr>`;
                 materiasDisponiveis.forEach(m => {
                     htmlRows += `
                         <tr>
                             <td class="ps-5 text-muted small">Disciplina da Grade</td>
                             <td class="fw-bold">${m.nome}</td>
                             <td class="text-end pe-4">
-                                <button class="btn btn-sm btn-primary" onclick="confirmarMatricula(${m.id}, '${m.nome.replace(/'/g, "\\'")}')">
+                                <button class="btn btn-sm btn-primary rounded-pill px-3" onclick="confirmarMatricula(${m.id}, '${m.nome.replace(/'/g, "\\'")}')">
                                     <i class="fas fa-plus me-1"></i>Matricular
                                 </button>
                             </td>
@@ -610,10 +651,10 @@ async function alunoFiltrarMatricula() {
             }
         });
 
-        container.innerHTML = htmlRows || `<tr><td colspan="3" class="text-center py-4 text-muted">Nenhuma disciplina disponível.</td></tr>`;
+        container.innerHTML = htmlRows || `<tr><td colspan="3" class="text-center py-4 text-muted">Nenhuma disciplina disponível para matrícula no momento.</td></tr>`;
     } catch (e) { 
         console.error(e);
-        container.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Erro ao carregar catálogo.</td></tr>'; 
+        container.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-4">Erro ao carregar catálogo. Tente atualizar a página.</td></tr>'; 
     }
 }
 
@@ -667,24 +708,27 @@ async function alunoMatricular(idMateria) {
 }
 
 async function alunoCancelarMateria(idMatricula, nome) {
-    if (!confirm(`Deseja realmente CANCELAR sua matrícula na disciplina: ${nome}? 
-(A disciplina sairá da sua grade atual, mas o registro permanecerá no histórico como cancelado).`)) return;
+    const msg = `Deseja realmente CANCELAR sua matrícula em: ${nome}?\n\n` +
+                `• O registro ficará no seu histórico como CANCELADO.\n` +
+                `• Se você estiver em Recuperação, perderá o direito de realizar a prova final desta disciplina.`;
+    
+    if (!confirm(msg)) return;
 
     try {
         instLoading(true);
-
+        // Atualiza para o status CANCELADO no backend
         await fetchAPI(`/matriculas/${idMatricula}`, 'PUT', {
             situacao: 'CANCELADO'
         });
 
-        mostrarToast(`Matrícula em ${nome} cancelada com sucesso.`, "info");
+        mostrarToast(`Matrícula em ${nome} cancelada.`, "info");
         
-        if (typeof alunoRenderCurso === 'function') {
-            await alunoRenderCurso();
-        }
+        if (typeof alunoFiltrarDisciplinas === 'function') await alunoFiltrarDisciplinas();
+        if (typeof alunoRenderCurso === 'function') await alunoRenderCurso();
+        
     } catch (e) {
-        console.error("Erro ao cancelar disciplina:", e);
-        exibirErroVisual("Erro ao cancelar disciplina. Verifique se o status 'CANCELADO' é permitido no sistema.");
+        console.error(e);
+        mostrarToast("Não foi possível cancelar esta disciplina no momento.", "danger");
     } finally {
         instLoading(false);
     }
@@ -886,31 +930,34 @@ async function alunoSalvarSenha(idUsuario) {
     const s2 = document.getElementById('pSenhaConf').value;
     const me = getUser(); 
     
-    if (s1.length < 4) {
-        return mostrarToast("A senha deve ter pelo menos 4 caracteres.", "danger");
+    if (s1.length < 6) {
+        return mostrarToast("A nova senha deve ter pelo menos 6 caracteres.", "warning");
     }
 
     if (s1 !== s2) {
-        return mostrarToast("As senhas digitadas não coincidem.", "danger");
+        return mostrarToast("As senhas não coincidem.", "danger");
     }
 
     try {
+        instLoading(true);
         await fetchAPI(`/usuarios/${idUsuario}`, 'PUT', { 
             nome: me.nome, 
             login: me.login, 
-            tipo: 'ALUNO', 
+            tipo: me.tipo || 'ALUNO', 
             senha: s1,
             cpf: me.cpf 
         });
         
-        mostrarToast("Sua senha foi alterada com sucesso!");
+        mostrarToast("Senha atualizada com sucesso! Redirecionando...");
         
         document.getElementById('pSenhaNova').value = "";
         document.getElementById('pSenhaConf').value = "";
         
-        setTimeout(() => alunoRenderHome(), 2000);
+        setTimeout(() => alunoRenderHome(), 1500);
 
     } catch(e) { 
-        mostrarToast("Erro ao atualizar senha. Tente novamente.", "danger");
+        mostrarToast("Erro ao atualizar senha. Verifique sua conexão.", "danger");
+    } finally {
+        instLoading(false);
     }
 }

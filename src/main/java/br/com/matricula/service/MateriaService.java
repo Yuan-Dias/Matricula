@@ -1,12 +1,23 @@
 package br.com.matricula.service;
 
-import br.com.matricula.dto.*;
-import br.com.matricula.model.*;
-import br.com.matricula.repository.*;
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import br.com.matricula.dto.DadosCadastroMateria;
+import br.com.matricula.dto.DadosConfiguracao;
+import br.com.matricula.dto.DadosListagemMateria;
+import br.com.matricula.model.ConfiguracaoAvaliacao;
+import br.com.matricula.model.Materia;
+import br.com.matricula.model.Matricula;
+import br.com.matricula.model.StatusMatricula;
+import br.com.matricula.model.TipoUsuario;
+import br.com.matricula.repository.ConfiguracaoAvaliacaoRepository;
+import br.com.matricula.repository.CursoRepository;
+import br.com.matricula.repository.MateriaRepository;
+import br.com.matricula.repository.MatriculaRepository;
+import br.com.matricula.repository.UsuarioRepository;
 
 @Service
 public class MateriaService {
@@ -170,28 +181,28 @@ public class MateriaService {
     @Transactional
     public void finalizarSemestre(Long idMateria, String loginProfessor) {
         @SuppressWarnings("null")
-        Materia materia = repository.findById(idMateria)
+        var materia = repository.findById(idMateria)
                 .orElseThrow(() -> new RuntimeException("Matéria não encontrada."));
 
         if (!materia.getProfessor().getLogin().equals(loginProfessor)) {
             throw new RuntimeException("Apenas o professor da matéria pode encerrá-la.");
         }
 
-        materia.setEncerrada(true);
-        repository.save(materia);
+        List<Matricula> matriculas = matriculaRepository.findByMateriaId(idMateria);
 
-        List<Matricula> alunos = matriculaRepository.findByMateriaId(idMateria);
+        for (Matricula m : matriculas) {
+            if (!m.isAtiva()) continue;
 
-        for (Matricula m : alunos) {
             double media = m.getMediaFinal();
             m.setNotaFinal(media);
 
-            // Define o status final baseado na sua regra de negócio
             if (media >= 7.0) {
                 m.setStatus(StatusMatricula.APROVADO);
             } else {
                 m.setStatus(StatusMatricula.REPROVADO);
             }
+
+            m.setAtiva(false); 
         }
     }
 }
