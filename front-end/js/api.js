@@ -54,7 +54,7 @@ function exibirErroVisual(mensagem) {
         msgEl.textContent = mensagem;
         new bootstrap.Modal(modalEl).show();
     } else {
-        alert(mensagem); // Fallback caso o modal não exista
+        alert(mensagem);
     }
 }
 
@@ -64,40 +64,55 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
         const options = { method, headers };
         if (body) options.body = JSON.stringify(body);
 
-        const response = await fetch(`${API_URL}${endpoint}`, options);
+        console.log(`[API] Requisição: ${method} ${endpoint}`);
 
+        const response = await fetch(`${API_URL}${endpoint}`, options);
+        
+        // 1. Pega o texto bruto
+        const text = await response.text();
+
+        // 2. Verificação de Token
         if (response.status === 401 || response.status === 403) {
+            console.warn("[API] Token inválido ou expirado.");
             logout();
             return null;
         }
 
-        // --- MELHORIA AQUI: Captura mensagens de erro em texto ou JSON ---
-        if (!response.ok) {
-            const errorText = await response.text(); // Lê como texto primeiro
-            let message = `Erro ${response.status}`;
-            
-            try {
-                const errorJson = JSON.parse(errorText);
-                message = errorJson.message || message;
-            } catch (e) {
-                // Se não for JSON, usa o texto puro retornado pelo e.getMessage() do Java
-                message = errorText || message;
+        let data = null;
+        
+        // 3. Tenta converter para JSON (BLINDADO)
+        try {
+            if (text && text.trim().length > 0) {
+                data = JSON.parse(text);
             }
-            throw new Error(message);
+        } catch (e) {
+            // Se der erro de JSON, ignoramos por enquanto
+            // Se for sucesso (200), assumimos que é texto puro.
         }
 
-        const text = await response.text();
-        if (!text) return {};
+        // 4. Se a resposta HTTP for ERRO (400, 404, 500...)
+        if (!response.ok) {
+            if (data) {
+                console.log("[API] Erro estruturado recebido:", data);
+                throw data; // Lança o JSON de erro (ex: validação de campos)
+            }
+            // Se não tem JSON, lança o texto ou status
+            throw new Error(text || `Erro na requisição: ${response.status}`);
+        }
 
-        try {
-            return JSON.parse(text);
-        } catch (e) {
-            // Se não for JSON (ex: String pura do Java), retorna o texto como um objeto
-            return { message: text }; 
+        // 5. Se a resposta for SUCESSO (200 OK)
+        if (data) return data; // Retorna o JSON se existir
+        
+        // Se não tem JSON, cria um objeto de sucesso falso com o texto
+        return { message: text || "Operação realizada com sucesso" };
+
+    } catch (error) {
+        // Se for array de erros (validação), relança para o formulário tratar
+        if (Array.isArray(error) || (typeof error === 'object' && error.campo)) {
+            throw error;
         }
         
-    } catch (error) {
-        console.error("Fetch Error:", error.message);
+        console.error("[API] Erro crítico:", error);
         throw error; 
     }
 }

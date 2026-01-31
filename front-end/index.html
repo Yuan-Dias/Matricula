@@ -3,112 +3,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portal SGA | Dashboard</title>
+    <title>Portal SGA | Dashboard Acadêmico</title>
 
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
     <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
 
     <div class="d-flex" id="wrapper">
-        <div class="bg-dark text-white" id="sidebar-wrapper">
-            <div class="sidebar-heading text-center py-4 primary-text fs-4 fw-bold text-uppercase border-bottom">
-                <i class="fas fa-graduation-cap me-2"></i>SGA
+        
+        <div id="sidebar-wrapper">
+            <div class="sidebar-heading">
+                <i class="fas fa-graduation-cap fs-4"></i>
+                <span>SGA PORTAL</span>
             </div>
+            
             <div class="list-group list-group-flush my-3" id="sidebar-menu">
+                <div class="text-center text-white-50 mt-4">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                    <p class="small mt-2">Carregando menu...</p>
                 </div>
+            </div>
         </div>
 
         <div id="page-content-wrapper">
-            <nav class="navbar navbar-expand-lg navbar-light bg-light py-4 px-4 border-bottom shadow-sm">
+            
+            <nav class="top-navbar">
                 <div class="d-flex align-items-center">
-                    <i class="fas fa-align-left primary-text fs-4 me-3" id="menu-toggle"></i>
-                    <h2 class="fs-2 m-0" id="page-title">Dashboard</h2>
+                    <div class="btn-toggle-sidebar me-3" id="menu-toggle">
+                        <i class="fas fa-bars fs-4"></i>
+                    </div>
+                    <h2 class="fs-4 m-0 fw-semibold" id="page-title">Dashboard</h2>
                 </div>
 
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                    data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent"
-                    aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-
-                <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                    <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle second-text fw-bold" href="#" id="navbarDropdown"
-                                role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="fas fa-user me-2"></i><span id="user-name-display">Usuário</span>
-                            </a>
-                            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-                                <li><a class="dropdown-item" href="#" onclick="renderPerfilGlobal()">Perfil</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item text-danger" href="#" onclick="logout()">Sair</a></li>
-                            </ul>
-                        </li>
+                <div class="dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center gap-2 text-white" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <div class="bg-white text-success rounded-circle d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <span id="user-name-display" class="d-none d-md-block fw-medium">Carregando...</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="navbarDropdown">
+                        <li><a class="dropdown-item" href="#" onclick="instRenderPerfil()"><i class="fas fa-id-card me-2 text-muted"></i>Meu Perfil</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger fw-bold" href="#" onclick="instLogout()"><i class="fas fa-sign-out-alt me-2"></i>Sair</a></li>
                     </ul>
                 </div>
             </nav>
 
-            <div class="container-fluid px-4 py-4" id="appContent">
-                <div class="text-center mt-5">
-                    <div class="spinner-border text-primary" role="status">
+            <div class="container-fluid-custom" id="appContent">
+                <div class="d-flex flex-column align-items-center justify-content-center" style="height: 60vh;">
+                    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
                         <span class="visually-hidden">Carregando...</span>
                     </div>
+                    <p class="mt-3 text-muted fw-medium">Preparando seu ambiente...</p>
                 </div>
             </div>
         </div>
     </div>
+
     <div class="modal fade" id="modalUsuario" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header modal-header-custom">
                     <h5 class="modal-title" id="modalUsuarioTitle">Gerenciar Usuário</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body p-4">
                     <form id="formUsuario" novalidate>
                         <input type="hidden" id="usuarioId">
                         
                         <div class="mb-3">
-                            <label class="form-label">Nome Completo</label>
+                            <label class="form-label fw-bold small text-secondary">NOME COMPLETO</label>
                             <input type="text" class="form-control" id="usuarioNome" required>
                             <div class="invalid-feedback">O nome é obrigatório.</div>
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">Login / Email</label>
+                            <label class="form-label fw-bold small text-secondary">LOGIN / E-MAIL</label>
                             <input type="email" class="form-control" id="usuarioLogin" required>
                             <div class="invalid-feedback">Informe um e-mail válido.</div>
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">Senha</label>
-                            <input type="password" class="form-control" id="usuarioSenha">
-                            <div class="form-text">Deixe em branco se for apenas editar.</div>
+                            <label class="form-label fw-bold small text-secondary">SENHA DE ACESSO</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="usuarioSenha">
+                                <button class="btn btn-outline-secondary" type="button" onclick="instToggleSenha()" style="border-color: #ced4da;">
+                                    <i class="fas fa-eye" id="iconSenha"></i>
+                                </button>
+                            </div>
+                            <div class="form-text text-muted small">
+                                <i class="fas fa-lock me-1"></i> Preencha apenas se desejar alterar.
+                            </div>
                             <div class="invalid-feedback">Senha é obrigatória para novos usuários.</div>
                         </div>
 
-                        <div class="mb-3 d-none" id="divCpf">
-                            <label class="form-label">CPF (Obrigatório para Alunos)</label>
-                            <input type="text" class="form-control" id="usuarioCpf" placeholder="000.000.000-00">
+                        <div class="mb-3 d-none bg-light p-3 rounded border" id="divCpf">
+                            <label class="form-label fw-bold small text-secondary">CPF (ALUNO)</label>
+                            <input type="text" class="form-control" id="usuarioCpf" placeholder="000.000.000-00" maxlength="14" oninput="instMascaraCPF(this)">
                             <div class="invalid-feedback">CPF é obrigatório para alunos.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Tipo de Perfil</label>
+                            <label class="form-label fw-bold small text-secondary">TIPO DE PERFIL</label>
                             <select id="usuarioTipo" class="form-select" onchange="instToggleCpf()" required>
                                 <option value="ALUNO">Discente (Aluno)</option>
                                 <option value="PROFESSOR">Docente (Professor)</option>
-                                <option value="INSTITUICAO">Instituição (Administrador)</option>
+                                <option value="ADMIN">Instituição (Admin)</option>
                             </select>
                         </div>
                     </form>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                    <button type="button" class="btn btn-primary" onclick="instSalvarUsuario()">Salvar</button>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary px-4" onclick="instSalvarUsuario()">Salvar Dados</button>
                 </div>
             </div>
         </div>
@@ -116,83 +133,84 @@
 
     <div class="modal fade" id="modalCurso" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header modal-header-custom">
                     <h5 class="modal-title" id="modalCursoTitle">Gerenciar Curso</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
-                    <form id="formCurso" novalidate> <input type="hidden" id="cursoId">
+                <div class="modal-body p-4">
+                    <form id="formCurso" novalidate> 
+                        <input type="hidden" id="cursoId">
                         
                         <div class="mb-3">
-                            <label class="form-label">Nome do Curso</label>
-                            <input type="text" class="form-control" id="cursoNome" required>
+                            <label class="form-label fw-bold small text-secondary">NOME DO CURSO</label>
+                            <input type="text" class="form-control" id="cursoNome" placeholder="Ex: Engenharia de Software" required>
                             <div class="invalid-feedback">Por favor, informe o nome do curso.</div>
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">Descrição</label>
+                            <label class="form-label fw-bold small text-secondary">DESCRIÇÃO</label>
                             <textarea class="form-control" id="cursoDescricao" rows="3"></textarea>
                         </div>
                         
-                        <div class="mb-3">
-                            <label class="form-label">Carga Horária (horas)</label>
-                            <input type="number" id="cursoCargaHoraria" class="form-control" required min="1">
-                            <div class="invalid-feedback">Informe uma carga horária válida.</div>
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label class="form-label fw-bold small text-secondary">CARGA HORÁRIA</label>
+                                <div class="input-group">
+                                    <input type="number" id="cursoCargaHoraria" class="form-control" required min="1">
+                                    <span class="input-group-text">h</span>
+                                </div>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label class="form-label fw-bold small text-secondary">VAGAS</label>
+                                <input type="number" id="cursoCapacidade" class="form-control" required min="1">
+                            </div>
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">Capacidade de Alunos</label>
-                            <input type="number" id="cursoCapacidade" class="form-control" required min="1">
-                            <div class="invalid-feedback">Informe a capacidade da turma.</div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Professor Responsável</label>
+                            <label class="form-label fw-bold small text-secondary">COORDENADOR / PROF. RESPONSÁVEL</label>
                             <select id="cursoProfessorId" class="form-select" required>
                                 <option value="">Carregando professores...</option>
                             </select>
-                            <div class="invalid-feedback">Selecione um professor responsável.</div>
                         </div>
                     </form>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                    <button type="button" class="btn btn-primary" onclick="instSalvarCurso()">Salvar</button>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary px-4" onclick="instSalvarCurso()">Salvar Curso</button>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="modal fade" id="modalMateria" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg"> <div class="modal-content">
-                <div class="modal-header">
+        <div class="modal-dialog modal-lg"> 
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header modal-header-custom">
                     <h5 class="modal-title" id="modalMateriaTitle">Gerenciar Matéria</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body p-4">
                     <form id="formMateria" novalidate>
                         <input type="hidden" id="materiaId">
                         
-                        <div class="row">
-                            <div class="col-md-12 mb-3">
-                                <label class="form-label">Nome da Matéria</label>
-                                <input type="text" class="form-control" id="materiaNome" required>
-                                <div class="invalid-feedback">Informe o nome da matéria.</div>
-                            </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-bold small text-secondary">NOME DA MATÉRIA</label>
+                            <input type="text" class="form-control form-control-lg" id="materiaNome" placeholder="Ex: Cálculo I" required>
+                            <div class="invalid-feedback">Informe o nome da matéria.</div>
                         </div>
                         
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Pertence ao Curso:</label>
+                                <label class="form-label fw-bold small text-secondary">CURSO VINCULADO</label>
                                 <select class="form-select" id="materiaCursoSelect" required>
                                     <option value="" selected disabled>Selecione...</option>
                                 </select>
-                                <div class="invalid-feedback">Selecione a qual curso esta matéria pertence.</div>
+                                <div class="invalid-feedback">Selecione um curso.</div>
                             </div>
 
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Professor Responsável:</label>
+                                <label class="form-label fw-bold small text-secondary">PROFESSOR MINISTRANTE</label>
                                 <select class="form-select" id="materiaProfSelect">
                                     <option value="" selected>Sem professor no momento</option>
                                 </select>
@@ -200,32 +218,72 @@
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">Descrição</label>
-                            <textarea id="materiaDescricao" class="form-control" rows="2" placeholder="Descreva o conteúdo..." required></textarea>
-                            <div class="invalid-feedback">A descrição é obrigatória.</div>
+                            <label class="form-label fw-bold small text-secondary">EMENTA / DESCRIÇÃO</label>
+                            <textarea id="materiaDescricao" class="form-control" rows="2" placeholder="Descreva os tópicos abordados..." required></textarea>
                         </div>
 
-                        <hr class="my-4">
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <label class="form-label fw-bold mb-0">Configuração de Notas / Pesos</label>
-                                <button type="button" class="btn btn-sm btn-outline-success" onclick="instAdicionarLinhaNota()">
-                                    <i class="fas fa-plus me-1"></i> Adicionar Nota
-                                </button>
-                            </div>
-                            
-                            <div class="alert alert-info py-2 small">
-                                <i class="fas fa-info-circle me-1"></i> Defina as avaliações (Ex: Prova 1 peso 4).
-                            </div>
-                            
-                            <div id="containerNotasConfig" class="d-flex flex-column gap-2">
+                        <div class="card bg-light border-0 mt-4">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="fw-bold m-0 text-success"><i class="fas fa-tasks me-2"></i>Critérios de Avaliação</h6>
+                                    <button type="button" class="btn btn-sm btn-outline-success" onclick="instAdicionarLinhaNota()">
+                                        <i class="fas fa-plus"></i> Adicionar
+                                    </button>
                                 </div>
+                                
+                                <div id="containerNotasConfig" class="d-flex flex-column gap-2">
+                                </div>
+                                
+                                <div id="containerRecuperacaoFixa" class="mt-2 border-top pt-2">
+                                </div>
+
+                                <div class="form-text mt-2 text-end small">A soma dos pesos deve ser 10 (se preenchidos).</div>
+                            </div>
                         </div>
-                        </form>
+                    </form>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                    <button type="button" class="btn btn-primary" onclick="instSalvarMateria()">Salvar</button>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary px-4" onclick="instSalvarMateria()">Salvar Matéria</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalConfirmarExclusao" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="fas fa-trash-alt me-2"></i>Confirmar Exclusão</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-exclamation-triangle text-warning fa-3x"></i>
+                    </div>
+                    <p id="textoConfirmacaoExclusao" class="fs-5 text-secondary">Tem certeza que deseja excluir este item?</p>
+                    <p class="small text-muted">Esta ação é irreversível.</p>
+                </div>
+                <div class="modal-footer justify-content-center bg-light">
+                    <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger px-4" onclick="instConfirmarExclusao()">Sim, Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalErroGlobal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="fas fa-exclamation-circle me-2"></i>Atenção</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <p id="mensagemErroGlobal" class="text-secondary fs-5 mb-0"></p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center pb-4">
+                    <button type="button" class="btn btn-danger px-4 rounded-pill" data-bs-dismiss="modal">Entendido</button>
                 </div>
             </div>
         </div>
@@ -233,29 +291,48 @@
 
     <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;"></div>
     
-    <div class="modal fade" id="modalErroGlobal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i> Ops! Algo deu errado</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-4 text-center">
-                    <p id="mensagemErroGlobal" class="text-muted fs-5"></p>
-                </div>
-                <div class="modal-footer border-0 justify-content-center">
-                    <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Entendido</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script src="js/api.js"></script>
-    <script src="js/views/instituicao.js" defer></script>
-    <script src="js/views/professor.js" defer></script>
-    <script src="js/views/aluno.js" defer></script>
-    <script src="js/dashboard.js" defer></script>
+    <script src="js/utils.js"></script>
+    
+    <script src="js/views/instituicao.js"></script>
+    <script src="js/views/dashboard-inst.js"></script>
+    <script src="js/views/usuarios.js"></script>
+    <script src="js/views/cursos.js"></script>
+    <script src="js/views/materias.js"></script>
+    <script src="js/views/perfil.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Verifica Token e Usuário
+            const user = typeof getUser === 'function' ? getUser() : null;
+            
+            if (user) {
+                // Atualiza nome no topo
+                const display = document.getElementById('user-name-display');
+                if (display) display.textContent = user.nome;
+                
+                // Inicia o App (Carrega Menu Lateral e View Inicial)
+                if (typeof carregarInstituicao === 'function') {
+                    carregarInstituicao();
+                } else {
+                    console.error('Erro: Função carregarInstituicao não encontrada.');
+                }
+            } else {
+                // Se não tiver usuário, redireciona para login
+                window.location.href = 'login.html'; 
+            }
+
+            // Ativa o toggle do menu (Mobile)
+            const menuToggle = document.getElementById("menu-toggle");
+            const wrapper = document.getElementById("wrapper");
+            if(menuToggle && wrapper){
+                menuToggle.addEventListener('click', () => {
+                    wrapper.classList.toggle("toggled");
+                });
+            }
+        });
+    </script>
 </body>
 </html>

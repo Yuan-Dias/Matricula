@@ -38,22 +38,29 @@ public class SecurityConfig {
                     // 1. ROTAS PÚBLICAS
                     // ====================================================
                     req.requestMatchers("/error").permitAll();
+                    
+                    // Login
                     req.requestMatchers(HttpMethod.POST, "/login", "/auth/login").permitAll();
+                    
+                    // Documentação (Swagger)
                     req.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
-                    req.requestMatchers(HttpMethod.POST, "/usuarios").permitAll(); 
+                    
+                    // Configuração Inicial (Setup)
+                    req.requestMatchers(HttpMethod.POST, "/usuarios").permitAll();
+                    req.requestMatchers(HttpMethod.GET, "/usuarios").permitAll(); 
 
                     // ====================================================
                     // 2. REGRAS ESPECÍFICAS (Exceções vêm antes das regras gerais)
                     // ====================================================
+                    // Notas e Avaliações
                     req.requestMatchers(HttpMethod.PUT, "/materias/*/avaliacoes").hasAuthority("PROFESSOR");
                     req.requestMatchers(HttpMethod.GET, "/materias/*/avaliacoes").authenticated(); // Professor e Aluno leem
-
                     req.requestMatchers(HttpMethod.PUT, "/matriculas/notas").hasAuthority("PROFESSOR");
 
                     // ====================================================
                     // 3. DASHBOARD E LEITURA GERAL
                     // ====================================================
-                    req.requestMatchers(HttpMethod.GET, "/usuarios").hasAuthority("INSTITUICAO");
+                    
                     req.requestMatchers(HttpMethod.GET, "/cursos/**").authenticated();
                     req.requestMatchers(HttpMethod.GET, "/materias/**").authenticated();
 
