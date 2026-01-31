@@ -25,7 +25,7 @@ function atualizarMenuAtivo(textoItem) {
 }
 
 // --- Inicialização ---
-function carregarInstituicao() {
+async function carregarInstituicao() {
     if(pageTitle) pageTitle.innerHTML = '<span class="text-white fw-bold">Painel</span> Admin';
 
     // Menu Lateral
@@ -47,20 +47,14 @@ function carregarInstituicao() {
         <a href="#" onclick="instRenderMaterias()" class="list-group-item list-group-item-action">
             <i class="fas fa-book-open me-2"></i> Matérias
         </a>
-
-        <div class="px-3 mt-4 mb-2 text-white-50 small text-uppercase fw-bold" style="letter-spacing: 1px;">Configurações</div>
-
-        <a href="#" onclick="instRenderPerfil()" class="list-group-item list-group-item-action">
-            <i class="fas fa-user-cog me-2"></i> Meu Perfil
-        </a>
-        
-        <div class="mt-auto border-top border-white-50 pt-3 mx-3 mt-5 mb-3">
-             <a href="#" onclick="instLogout()" class="text-white text-decoration-none d-flex align-items-center opacity-75 hover-opacity-100 p-2">
-                <i class="fas fa-sign-out-alt me-2"></i> Sair do Sistema
-             </a>
-        </div>
     `;
+
+    if (typeof window.instRenderHome === 'function') {
+        await window.instRenderHome();
+    }
     
     // Renderiza a Home inicialmente
     instRenderHome();
+
+    window.instRenderHome = instRenderHome;
 }

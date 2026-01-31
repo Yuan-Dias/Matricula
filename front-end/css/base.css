@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ==========================================================================
+   2. RESET E ESTILOS BASE
+   ========================================================================== */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-body);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden; 
+    height: 100vh;
+}
+
+/* Scrollbar Customizada (Geral) */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 4px;
+}
+
+/* Tipografia Extra */
+.letter-spacing-1 {
+    letter-spacing: 1px;
+}
+
+/* ==========================================================================
+   10. BOOTSTRAP OVERRIDES E CORES GLOBAIS
+   ========================================================================== */
+/* Botões Primary */
+.btn-primary {
+    background-color: var(--primary-light);
+    border-color: var(--primary-light);
+    color: white;
+}
+.btn-primary:hover, 
+.btn-primary:active, 
+.btn-primary:focus {
+    background-color: #047857 !important;
+    border-color: #047857 !important;
+}
+.btn-primary:disabled {
+    background-color: var(--primary-light) !important;
+    border-color: var(--primary-light) !important;
+    opacity: 0.65;
+    color: white;
+}
+
+/* Utilitários de Cor */
+.bg-primary {
+    background-color: var(--primary-light) !important;
+    color: white !important;
+}
+.bg-info {
+    background-color: #0d9488 !important;
+    color: white !important;
+}
+.bg-success {
+    background-color: var(--accent-color) !important;
+    color: white !important;
+}
+.text-primary {
+    color: var(--primary-medium) !important; 
+}
+
+/* Focus Padrão do Bootstrap */
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-light);
+    box-shadow: 0 0 0 0.25rem var(--primary-focus);
+}
+
+/* Botões Hover Effect */
+.btn-hover-lift {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.btn-hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+/* Utilitário Icones Redondos */
+.rounded-circle {
+    border-radius: 50% !important;
+}
+
+.spinner-border.text-primary { color: var(--primary-light) !important; }
+
+/* Animações Globais */
+.fade-in { animation: fadeIn 0.4s ease-out forwards; opacity: 0; }
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+}

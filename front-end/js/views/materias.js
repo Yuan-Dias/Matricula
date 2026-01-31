@@ -94,7 +94,8 @@ async function instFiltrarMaterias() {
             const listaNotas = m.avaliacoes || m.notasConfig || [];
             const isEncerrada = m.encerrada || m.status === 'FINALIZADA';
             
-            const htmlNotas = utilsGerarBarraPesos(listaNotas);
+            // Assume que existe uma função utils para isso, senão apenas exibe texto
+            const htmlNotas = typeof utilsGerarBarraPesos === 'function' ? utilsGerarBarraPesos(listaNotas) : `<small class="text-muted">${listaNotas.length} critérios</small>`;
 
             return `
                 <tr class="${isEncerrada ? 'bg-light opacity-75' : ''} fade-in">
@@ -192,12 +193,12 @@ function instRenderizarRecuperacaoFixa() {
     const container = document.getElementById('containerRecuperacaoFixa');
     if (!container) return;
 
+    // Removemos a exibição do texto "Peso: N/A" e mantemos limpo
     container.innerHTML = `
         <div class="d-flex align-items-center gap-2 p-2 bg-light rounded border border-light text-muted">
             <div style="width: 24px;" class="text-center"><i class="fas fa-lock fa-xs"></i></div>
             <div class="flex-grow-1 fw-bold small text-uppercase">Recuperação / Exame Final</div>
-            <div style="width: 100px;" class="text-center small">Peso: N/A</div>
-            <div style="width: 32px;"></div> </div>
+            <div style="width: 100px;" class="text-center small"></div> <div style="width: 32px;"></div> </div>
     `;
 }
 
@@ -282,7 +283,7 @@ async function instAbrirModalMateria(materia = null) {
     }
 
     if (materia) {
-        document.getElementById('modalMateriaTitle').textContent = 'Editar Matéria'; // Ajustei ID aqui
+        document.getElementById('modalMateriaTitle').textContent = 'Editar Matéria';
         btnSalvar.textContent = 'Atualizar';
 
         document.getElementById('materiaId').value = materia.id;
@@ -372,7 +373,8 @@ async function instSalvarMateria() {
 
     const somaValida = Math.abs(pesoTotal - 10) < 0.1;
     if (!somaValida && pesoTotal !== 0) {
-         if(!confirm(`⚠️ Atenção: A soma dos pesos é ${pesoTotal.toFixed(1)}. O ideal é 10.0.\nDeseja salvar mesmo assim?`)) return;
+         // REMOVIDO O EMOJI AQUI
+         if(!confirm(`Atenção: A soma dos pesos é ${pesoTotal.toFixed(1)}. O ideal é 10.0.\nDeseja salvar mesmo assim?`)) return;
     }
 
     try {
@@ -494,12 +496,18 @@ async function instVerAlunos(idMateria, nomeMateria) {
         let tableHeader = `
             <tr class="small text-muted">
                 <th class="ps-3 text-uppercase">Aluno</th>
-                ${configs.map(av => `
+                ${configs.map(av => {
+                    const nome = (av.descricaoNota || av.nome || "").toUpperCase();
+                    // Verifica se é recuperação ou exame para não exibir o peso
+                    const isRec = nome.includes("RECUPERA") || nome.includes("PROVA FINAL") || nome.includes("EXAME");
+                    
+                    return `
                     <th class="text-center" style="min-width: 80px;">
                         ${av.descricaoNota || av.nome} <br>
-                        <span class="badge bg-light text-secondary border fw-normal">Peso ${av.peso}</span>
+                        ${isRec ? '' : `<span class="badge bg-light text-secondary border fw-normal">Peso ${av.peso}</span>`}
                     </th>
-                `).join('')}
+                    `;
+                }).join('')}
                 <th class="text-center bg-light border-start border-end text-primary">Média</th>
                 <th class="text-center">Situação</th>
             </tr>`;

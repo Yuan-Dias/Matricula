@@ -18,7 +18,7 @@
 </head>
 <body>
 
-    <div class="d-flex" id="wrapper">
+    <div class="d-flex" id="wrapper" style="display: none !important;">
         
         <div id="sidebar-wrapper">
             <div class="sidebar-heading">
@@ -52,9 +52,9 @@
                         <span id="user-name-display" class="d-none d-md-block fw-medium">Carregando...</span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="navbarDropdown">
-                        <li><a class="dropdown-item" href="#" onclick="instRenderPerfil()"><i class="fas fa-id-card me-2 text-muted"></i>Meu Perfil</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="renderPerfilGlobal(); return false;"><i class="fas fa-id-card me-2 text-muted"></i>Meu Perfil</a></li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-danger fw-bold" href="#" onclick="instLogout()"><i class="fas fa-sign-out-alt me-2"></i>Sair</a></li>
+                        <li><a class="dropdown-item text-danger fw-bold" href="#" onclick="logout(); return false;"><i class="fas fa-sign-out-alt me-2"></i>Sair</a></li>
                     </ul>
                 </div>
             </nav>
@@ -118,7 +118,7 @@
                             <select id="usuarioTipo" class="form-select" onchange="instToggleCpf()" required>
                                 <option value="ALUNO">Discente (Aluno)</option>
                                 <option value="PROFESSOR">Docente (Professor)</option>
-                                <option value="ADMIN">Instituição (Admin)</option>
+                                <option value="INSTITUICAO">Instituição (Admin)</option>
                             </select>
                         </div>
                     </form>
@@ -293,45 +293,92 @@
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <script src="js/api.js"></script>
-    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>       <script src="js/utils.js"></script>     <script src="js/dashboard.js"></script>
     
-    <script src="js/views/instituicao.js"></script>
-    <script src="js/views/dashboard-inst.js"></script>
-    <script src="js/views/usuarios.js"></script>
-    <script src="js/views/cursos.js"></script>
-    <script src="js/views/materias.js"></script>
     <script src="js/views/perfil.js"></script>
-    
+
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Verifica Token e Usuário
-            const user = typeof getUser === 'function' ? getUser() : null;
-            
-            if (user) {
-                // Atualiza nome no topo
-                const display = document.getElementById('user-name-display');
-                if (display) display.textContent = user.nome;
+        // Carregador dinâmico de scripts
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = resolve;
+                // Tratamento de erro para não travar a aplicação
+                s.onerror = () => {
+                    console.warn(`Aviso: Script opcional não encontrado: ${src}`);
+                    resolve(); // Continua mesmo com erro
+                };
+                document.body.appendChild(s);
+            });
+        }
+
+        async function carregarAmbiente(user) {
+            try {
+                const tipo = user.tipo;
                 
-                // Inicia o App (Carrega Menu Lateral e View Inicial)
-                if (typeof carregarInstituicao === 'function') {
-                    carregarInstituicao();
-                } else {
-                    console.error('Erro: Função carregarInstituicao não encontrada.');
+                // Carrega os scripts específicos baseados no tipo de usuário
+                if (tipo === 'INSTITUICAO') {
+                    await loadScript('js/views/dashboard-inst.js');
+                    await loadScript('js/views/usuarios.js');
+                    await loadScript('js/views/cursos.js');
+                    await loadScript('js/views/materias.js');
+                    await loadScript('js/views/instituicao.js');
+                    
+                    if (typeof carregarInstituicao === 'function') carregarInstituicao();
+                } 
+                else if (tipo === 'PROFESSOR') {
+                    await loadScript('js/views/dashboard-prof.js');
+                    await loadScript('js/views/turmas.js');
+                    if (typeof carregarProfessor === 'function') carregarProfessor();
                 }
-            } else {
-                // Se não tiver usuário, redireciona para login
-                window.location.href = 'login.html'; 
+                else if (tipo === 'ALUNO') {
+                    await loadScript('js/views/dashboard-aluno.js');
+                    if (typeof carregarAluno === 'function') carregarAluno();
+                }
+
+                // Finaliza o carregamento visual e exibe a tela
+                const wrapper = document.getElementById("wrapper");
+                if (wrapper) wrapper.style.setProperty('display', 'flex', 'important');
+                
+            } catch (err) {
+                console.error("Erro crítico ao carregar ambiente:", err);
+                alert("Erro ao carregar os módulos do sistema. Verifique o console.");
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Verifica se o api.js carregou corretamente
+            if (typeof getUser !== 'function') {
+                console.error("FATAL: api.js não carregou. Verifique o caminho do arquivo.");
+                alert("Erro de sistema: API não carregada.");
+                return;
             }
 
-            // Ativa o toggle do menu (Mobile)
-            const menuToggle = document.getElementById("menu-toggle");
-            const wrapper = document.getElementById("wrapper");
-            if(menuToggle && wrapper){
-                menuToggle.addEventListener('click', () => {
-                    wrapper.classList.toggle("toggled");
-                });
+            // 2. Verifica autenticação
+            const user = getUser();
+            if (!user) {
+                // CORREÇÃO AQUI: Aponta para a pasta 'pages'
+                console.log("Usuário não logado. Redirecionando para login...");
+                window.location.href = 'pages/login.html'; 
+                return;
             }
+
+            // 3. Atualiza interface básica com dados do usuário
+            const display = document.getElementById('user-name-display');
+            if (display) display.textContent = user.nome || "Usuário";
+
+            // 4. Configura o botão de Toggle do menu lateral
+            const menuToggle = document.getElementById("menu-toggle");
+            if(menuToggle){
+                menuToggle.onclick = (e) => {
+                    e.preventDefault();
+                    document.getElementById("wrapper").classList.toggle("toggled");
+                };
+            }
+
+            // 5. Inicia o carregamento dos módulos
+            carregarAmbiente(user);
         });
     </script>
 </body>

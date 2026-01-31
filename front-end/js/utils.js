@@ -259,3 +259,23 @@ function utilsGerarBarraPesos(listaNotas) {
             <div class="d-flex flex-wrap">${legendas}</div>
         </div>`;
 }
+
+/**
+ * Destaca o item do menu lateral correspondente à página atual.
+ * @param {string} idElemento - O ID do elemento HTML do menu (ex: 'menu-prof-turmas')
+ */
+function atualizarMenuAtivo(idElemento) {
+    const sidebar = document.getElementById('sidebar-menu');
+    if (!sidebar) return;
+
+    // Remove 'active' de todos os itens
+    sidebar.querySelectorAll('.list-group-item').forEach(item => {
+        item.classList.remove('active');
+    });
+
+    // Adiciona 'active' apenas no item atual (se ele existir)
+    const itemAtual = document.getElementById(idElemento);
+    if (itemAtual) {
+        itemAtual.classList.add('active');
+    }
+}

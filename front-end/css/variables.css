@@ -1,0 +1,23 @@
+/* ==========================================================================
+   1. VARIÁVEIS E CONFIGURAÇÕES GERAIS (:ROOT)
+   ========================================================================== */
+:root {
+    /* --- PALETA ACADEMIC FOREST (Identidade Visual Verde) --- */
+    --primary-dark: #022c22;       /* Verde Profundo (Sidebar/Navbar BG) */
+    --primary-medium: #064e3b;     /* Verde Floresta (Degradê/Títulos) */
+    --primary-light: #059669;      /* Verde Acessível (Botões/Links) */
+    --primary-focus: rgba(5, 150, 105, 0.25); /* Focus Ring */
+    
+    --accent-color: #10b981;       /* Esmeralda Vibrante (Destaques/Ativos) */
+    
+    /* Cores de Fundo e Texto */
+    --bg-body: #f0fdf4;            /* Fundo com leve tom de menta/gelo */
+    --bg-card: #ffffff;            /* Branco puro para cards */
+    --text-primary: #1e293b;       /* Cinza Escuro (Texto Principal) */
+    --text-secondary: #64748b;     /* Cinza Médio (Legendas) */
+    --border-color: #e2e8f0;       /* Bordas sutis */
+    
+    /* Dimensões */
+    --sidebar-width: 260px;
+    --navbar-height: 70px;
+}
