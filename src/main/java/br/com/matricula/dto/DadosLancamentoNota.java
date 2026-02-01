@@ -10,7 +10,6 @@ public class DadosLancamentoNota {
     
     @NotNull private Long idConfiguracao;
 
-    @NotNull
     @DecimalMin("0.0")
     @DecimalMax("10.0")
     private Double nota;

@@ -1,7 +1,7 @@
 package br.com.matricula.controller;
 
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import br.com.matricula.dto.DadosLancamentoNota;
 import br.com.matricula.dto.DadosListagemMatriculaMateria;
 import br.com.matricula.dto.DadosMatricula;
+import br.com.matricula.model.StatusMatricula;
 import br.com.matricula.model.Usuario;
 import br.com.matricula.repository.UsuarioRepository;
 import br.com.matricula.service.MateriaService;
@@ -68,8 +69,8 @@ public class MatriculaMateriaController {
 
         List<DadosListagemMatriculaMateria> atuais = service.listarMatriculas(usuario)
                 .stream()
-                .filter(m -> m.isAtiva())
-                .collect(Collectors.toList());
+                .filter(DadosListagemMatriculaMateria::isAtiva) // Uso de Method Reference
+                .toList();
 
         return ResponseEntity.ok(atuais);
     }
@@ -104,7 +105,7 @@ public class MatriculaMateriaController {
 
     /**
      * ENCERRAR SEMESTRE
-     * Agora chama o service que move alunos para HISTORICO sem bloquear a Materia
+     * Move alunos para o status final (APROVADO/REPROVADO) com base no cálculo
      */
     @PutMapping("/encerrar/{idMateria}")
     @PreAuthorize("hasAuthority('PROFESSOR')")
@@ -113,23 +114,31 @@ public class MatriculaMateriaController {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         try {
             materiaService.finalizarSemestre(idMateria, auth.getName());
-            return ResponseEntity.ok("Semestre encerrado! Os alunos foram movidos para o histórico e a matéria está livre para o próximo período.");
+            return ResponseEntity.ok("Semestre encerrado! As médias foram calculadas e os alunos atualizados.");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
+    // Endpoint administrativo de fallback
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('INSTITUICAO') or hasAuthority('ALUNO')")
+    @PreAuthorize("hasAuthority('INSTITUICAO')")
     @Transactional
-    public ResponseEntity<Object> atualizarStatus(@PathVariable Long id, @RequestBody java.util.Map<String, String> corpo) {
+    public ResponseEntity<Object> atualizarStatus(@PathVariable Long id, @RequestBody Map<String, String> corpo) {
         try {
             var matricula = service.buscarPorId(id);
             if (corpo.containsKey("situacao")) {
-                matricula.setStatus(br.com.matricula.model.StatusMatricula.valueOf(corpo.get("situacao")));
+                // Converte a String recebida (ex: "APROVADO") para o Enum StatusMatricula
+                StatusMatricula novoStatus = StatusMatricula.valueOf(corpo.get("situacao"));
+                
+                // CORREÇÃO AQUI: Passa o Enum direto, e não a String (.name())
+                matricula.setStatus(novoStatus); 
+                
                 return ResponseEntity.ok().build();
             }
             return ResponseEntity.badRequest().body("Situação não informada");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body("Status inválido.");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

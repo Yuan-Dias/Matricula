@@ -74,6 +74,8 @@ async function instFiltrarMaterias() {
     const container = document.getElementById('materiasTableBody');
     if(!container) return;
 
+    instLimparTooltips();
+
     try {
         let materias = await fetchAPI('/materias');
         
@@ -94,7 +96,6 @@ async function instFiltrarMaterias() {
             const listaNotas = m.avaliacoes || m.notasConfig || [];
             const isEncerrada = m.encerrada || m.status === 'FINALIZADA';
             
-            // Assume que existe uma função utils para isso, senão apenas exibe texto
             const htmlNotas = typeof utilsGerarBarraPesos === 'function' ? utilsGerarBarraPesos(listaNotas) : `<small class="text-muted">${listaNotas.length} critérios</small>`;
 
             return `
@@ -116,24 +117,28 @@ async function instFiltrarMaterias() {
                     <td class="py-3">${htmlNotas}</td>
                     <td class="text-end pe-4 py-3">
                         <div class="btn-group shadow-sm">
+                            
                             <button class="btn btn-sm btn-light border" 
-                                    data-bs-toggle="tooltip" title="Diário de Classe / Notas" onclick="instVerAlunos(${m.id}, '${m.nome}')">
+                                    data-bs-toggle="tooltip" title="Diário de Classe / Notas" 
+                                    onclick="instLimparTooltips(); instVerAlunos(${m.id}, '${m.nome}')">
                                 <i class="fas fa-list-ol text-info"></i>
                             </button>
                             
                             <button class="btn btn-sm btn-light border" 
-                                    data-bs-toggle="tooltip" title="Editar Configurações" onclick="instPrepararEdicaoMateria(${m.id})" ${isEncerrada ? 'disabled' : ''}>
+                                    data-bs-toggle="tooltip" title="Editar Configurações" 
+                                    onclick="instLimparTooltips(); instPrepararEdicaoMateria(${m.id})" ${isEncerrada ? 'disabled' : ''}>
                                 <i class="fas fa-cog text-primary"></i>
                             </button>
 
                             <button class="btn btn-sm btn-light border" 
                                     data-bs-toggle="tooltip" title="${isEncerrada ? 'Matéria Já Encerrada' : 'Encerrar Semestre'}" 
-                                    onclick="instFinalizarMateria(${m.id}, '${m.nome}')" ${isEncerrada ? 'disabled' : ''}>
+                                    onclick="instLimparTooltips(); instFinalizarMateria(${m.id}, '${m.nome}')" ${isEncerrada ? 'disabled' : ''}>
                                 <i class="fas ${isEncerrada ? 'fa-check-double text-muted' : 'fa-lock text-warning'}"></i>
                             </button>
 
                             <button class="btn btn-sm btn-light border" 
-                                    data-bs-toggle="tooltip" title="Excluir Disciplina" onclick="instDeletarMateria(${m.id})">
+                                    data-bs-toggle="tooltip" title="Excluir Disciplina" 
+                                    onclick="instLimparTooltips(); instDeletarMateria(${m.id})">
                                 <i class="fas fa-trash text-danger"></i>
                             </button>
                         </div>
@@ -436,45 +441,104 @@ async function instDeletarMateria(id) {
     }
 }
 
+// Validar se podemos fechar a matéria
 async function instFinalizarMateria(idMateria, nomeMateria) {
     try {
+        if (typeof instLoading === 'function') instLoading(true);
+
         const [avaliacoes, matriculas] = await Promise.all([
             fetchAPI(`/materias/${idMateria}/avaliacoes`),
             fetchAPI('/matriculas')
         ]);
 
-        const alunosDaTurma = matriculas.filter(mat => mat.idMateria == idMateria);
+        // Filtrar apenas alunos desta matéria e ativos
+        const alunosDaTurma = matriculas.filter(mat => 
+            mat.idMateria == idMateria && mat.situacao !== 'CANCELADO' && mat.situacao !== 'TRANCADO'
+        );
         
         if (alunosDaTurma.length === 0) {
             return mostrarToast("Não há alunos matriculados para finalizar esta matéria.", "warning");
         }
 
-        const totalCriterios = avaliacoes.length;
-        const pendentes = alunosDaTurma.filter(a => {
-            const notasLancadas = Array.isArray(a.notas) 
-                ? a.notas.filter(n => n.valor !== null && n.valor !== undefined).length 
-                : 0;
-            return notasLancadas < totalCriterios;
+        // Identificar Configurações
+        const isRec = (nome) => {
+            const n = (nome || "").toUpperCase();
+            return n.includes("RECUPERA") || n.includes("PROVA FINAL") || n.includes("EXAME");
+        };
+
+        const configRecuperacao = avaliacoes.find(c => isRec(c.descricaoNota || c.nome));
+        const configsRegulares = avaliacoes.filter(c => !isRec(c.descricaoNota || c.nome));
+
+        const pendencias = [];
+
+        // Verifica cada aluno
+        alunosDaTurma.forEach(aluno => {
+            const notas = aluno.notas || [];
+            
+            // 1. Verificar se todas as notas REGULARES foram lançadas
+            const notasRegularesLancadas = configsRegulares.every(conf => {
+                const n = notas.find(nt => nt.idConfiguracao === conf.id);
+                return n && n.valor !== null && n.valor !== undefined && n.valor !== "";
+            });
+
+            if (!notasRegularesLancadas) {
+                pendencias.push(`Aluno(a) ${aluno.aluno?.nome || 'Desconhecido'} possui notas regulares pendentes.`);
+                return;
+            }
+
+            // 2. Calcular média parcial para saber se exige recuperação
+            // (Reaproveita a lógica do diario.js ou calcula simples aqui para validação)
+            let soma = 0;
+            let pesos = 0;
+            
+            configsRegulares.forEach(conf => {
+                const nObj = notas.find(nt => nt.idConfiguracao === conf.id);
+                let valor = parseFloat(String(nObj.valor).replace(',', '.'));
+                let peso = parseFloat(conf.peso) || 1;
+                soma += valor * peso;
+                pesos += peso;
+            });
+
+            const mediaParcial = pesos > 0 ? (soma / pesos) : 0;
+
+            // 3. Se média < 7 e tem configuração de REC, a nota de REC é obrigatória
+            if (mediaParcial < 7.0 && configRecuperacao) {
+                const notaRec = notas.find(nt => nt.idConfiguracao === configRecuperacao.id);
+                const temRec = notaRec && notaRec.valor !== null && notaRec.valor !== undefined && notaRec.valor !== "";
+                
+                if (!temRec) {
+                    pendencias.push(`Aluno(a) ${aluno.aluno?.nome} está com média ${(mediaParcial).toFixed(1)} e precisa da nota de Recuperação.`);
+                }
+            }
         });
 
-        if (pendentes.length > 0) {
-            return mostrarToast(`Impossível finalizar: ${pendentes.length} aluno(s) ainda têm notas pendentes. Todas as notas devem ser lançadas.`, "danger");
+        if (pendencias.length > 0) {
+            // Mostra os 3 primeiros erros para não poluir a tela
+            const msg = pendencias.slice(0, 3).join('\n') + (pendencias.length > 3 ? `\n... e mais ${pendencias.length - 3}.` : "");
+            alert("Não é possível finalizar a matéria:\n\n" + msg);
+            return;
         }
 
-        if (!confirm(`Confirma o fechamento de "${nomeMateria}"?\n\n- O sistema calculará a Média Final de todos os alunos.\n- O status mudará para FINALIZADA.\n- Não será possível alterar notas após esta ação.`)) return;
+        if (!confirm(`CONFIRMAÇÃO DE ENCERRAMENTO\n\nMatéria: ${nomeMateria}\n\n- O sistema calculará a Situação Final (Aprovado/Reprovado) de todos os alunos.\n- A matéria ficará como FINALIZADA.\n- Notas não poderão ser alteradas depois.\n\nDeseja continuar?`)) return;
 
         await fetchAPI(`/matriculas/encerrar/${idMateria}`, 'PUT', {});
         
         mostrarToast("Matéria encerrada e médias calculadas com sucesso!", "success");
-        instRenderMaterias();
+        instRenderMaterias(); // Volta para a lista principal
 
     } catch (e) {
+        console.error(e);
         mostrarToast("Erro ao finalizar matéria: " + e.message, "danger");
+    } finally {
+        if (typeof instLoading === 'function') instLoading(false);
     }
 }
 
 async function instVerAlunos(idMateria, nomeMateria) {
+    instGarantirModalNota(); // Garante que o HTML do modal existe
+
     const appContent = document.getElementById('appContent');
+    // Limpa a tela imediatamente
     appContent.innerHTML = `
         <div class="text-center py-5 fade-in">
             <div class="spinner-border text-primary"></div>
@@ -489,78 +553,168 @@ async function instVerAlunos(idMateria, nomeMateria) {
         ]);
         
         const isFinalizada = materia.status === 'FINALIZADA' || materia.encerrada;
-        const alunosDaTurma = matriculas.filter(mat => mat.idMateria == idMateria);
         
-        const configs = avaliacoes || []; 
+        // Filtrar e Ordenar Alunos
+        const alunosDaTurma = matriculas
+            .filter(mat => mat.idMateria == idMateria && mat.situacao !== 'CANCELADO')
+            .sort((a, b) => a.nomeAluno.localeCompare(b.nomeAluno));
+
+        // Separar configurações (usa utilsIsRecuperacao do utils.js)
+        const configs = avaliacoes || [];
+        const configsRegulares = configs.filter(c => !utilsIsRecuperacao(c.descricaoNota || c.nome));
+        const temRecuperacao = configs.some(c => utilsIsRecuperacao(c.descricaoNota || c.nome));
         
+        // --- Cabeçalho da Tabela ---
         let tableHeader = `
-            <tr class="small text-muted">
-                <th class="ps-3 text-uppercase">Aluno</th>
+            <tr class="small text-muted bg-light border-bottom">
+                <th class="ps-3 text-uppercase align-middle py-3">Aluno</th>
                 ${configs.map(av => {
-                    const nome = (av.descricaoNota || av.nome || "").toUpperCase();
-                    // Verifica se é recuperação ou exame para não exibir o peso
-                    const isRec = nome.includes("RECUPERA") || nome.includes("PROVA FINAL") || nome.includes("EXAME");
-                    
+                    const isRec = utilsIsRecuperacao(av.descricaoNota || av.nome);
                     return `
-                    <th class="text-center" style="min-width: 80px;">
-                        ${av.descricaoNota || av.nome} <br>
-                        ${isRec ? '' : `<span class="badge bg-light text-secondary border fw-normal">Peso ${av.peso}</span>`}
-                    </th>
-                    `;
+                    <th class="text-center align-middle" style="min-width: 100px;">
+                        <div class="fw-bold ${isRec ? 'text-danger small' : 'text-dark'}">${av.descricaoNota || av.nome}</div>
+                        ${isRec ? '' : `<span class="badge bg-white text-secondary border fw-normal mt-1" style="font-size:0.65rem">Peso ${av.peso}</span>`}
+                    </th>`;
                 }).join('')}
-                <th class="text-center bg-light border-start border-end text-primary">Média</th>
-                <th class="text-center">Situação</th>
+                <th class="text-center bg-light border-start border-end text-primary align-middle fw-bold">Média</th>
+                <th class="text-center align-middle">Situação</th>
             </tr>`;
 
+        // --- Corpo da Tabela ---
         let tableBody = alunosDaTurma.length === 0 
-            ? '<tr><td colspan="100%" class="text-center py-5 text-muted">Nenhum aluno matriculado.</td></tr>'
+            ? '<tr><td colspan="100%" class="text-center py-5 text-muted">Nenhum aluno matriculado nesta matéria.</td></tr>'
             : alunosDaTurma.map(a => {
                 const mapaNotas = {};
                 if (Array.isArray(a.notas)) {
-                    a.notas.forEach(n => { mapaNotas[n.idConfiguracao] = n.valor; });
+                    a.notas.forEach(n => { mapaNotas[n.idConfiguracao] = n; });
                 }
                 
-                const media = (a.mediaFinal !== undefined && a.mediaFinal !== null) ? parseFloat(a.mediaFinal) : 0;
+                // 1. Calcular Média
+                let mediaDisplay = 0;
+                
+                if (isFinalizada && a.mediaFinal != null) {
+                    mediaDisplay = parseFloat(a.mediaFinal);
+                } else {
+                    // Calculo Local em Tempo Real
+                    let somaPonderada = 0;
+                    let somaPesos = 0;
+                    
+                    configsRegulares.forEach(conf => {
+                        const n = mapaNotas[conf.id];
+                        if (n && n.valor != null && n.valor !== "") {
+                            somaPonderada += parseFloat(n.valor) * parseFloat(conf.peso);
+                            somaPesos += parseFloat(conf.peso);
+                        } else {
+                            somaPesos += parseFloat(conf.peso); 
+                        }
+                    });
+                    
+                    mediaDisplay = somaPesos > 0 ? (somaPonderada / somaPesos) : 0;
+                }
 
-                const status = utilsObterStatusAcademico(media, isFinalizada);
-                const statusBadge = `<span class="badge ${status.classBadge}" style="font-size: 0.7rem">${status.texto}</span>`;
+                // 2. Determinar Status Visual (Função movida para utils.js)
+                // Espera-se que instCalcularStatusVisual retorne o HTML/Badge
+                const resultadoStatus = utilsObterStatusAcademico(
+                    mediaDisplay,
+                    a.situacao,
+                    true,
+                    temRecuperacao
+                );
+                
+                // Transforma o objeto retornado pelo utils em HTML para a tabela da instituição
+                const statusObj = `<span class="badge ${resultadoStatus.classBadge}" style="font-size: 0.8rem">${resultadoStatus.texto}</span>`;
+
+                // 3. Renderizar Colunas de Notas
+                const colunasNotas = configs.map(av => {
+                    const notaObj = mapaNotas[av.id];
+                    const valor = (notaObj && notaObj.valor !== undefined && notaObj.valor !== null) ? Number(notaObj.valor) : null;
+                    
+                    let displayValor = '-';
+                    let corTexto = 'text-muted opacity-25';
+                    
+                    if (valor !== null) {
+                        displayValor = valor.toFixed(1);
+                        // Usa função global de cor se disponível, ou lógica simples
+                        corTexto = (typeof getNotaColor === 'function') 
+                            ? getNotaColor(valor).replace('text-', 'text-') // apenas garantindo classe
+                            : (valor < 6.0 ? 'text-danger fw-bold' : 'text-dark fw-bold');
+                    }
+
+                    const btnEdit = isFinalizada ? '' : `
+                        <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center opacity-0 hover-show" 
+                             style="cursor: pointer; background-color: rgba(0,0,0,0.05);"
+                             onclick="instAbrirModalNota(${a.id}, ${av.id}, '${a.nomeAluno.replace(/'/g, "\\'")}', '${av.descricaoNota || av.nome}', '${valor !== null ? valor : ''}')">
+                            <i class="fas fa-pen text-primary"></i>
+                        </div>
+                    `;
+
+                    return `
+                        <td class="text-center position-relative p-0 hover-trigger" style="height: 50px; vertical-align: middle;">
+                            <span class="${corTexto} fs-6">${displayValor}</span>
+                            ${btnEdit}
+                        </td>`;
+                }).join('');
 
                 return `
-                    <tr class="fade-in align-middle" style="font-size: 0.9rem;">
-                        <td class="ps-3 fw-bold text-dark text-truncate" style="max-width: 250px;">${a.nomeAluno}</td>
-                        ${configs.map(av => {
-                            const valor = mapaNotas[av.id];
-                            const displayValor = (valor !== undefined && valor !== null) ? Number(valor).toFixed(1) : '-';
-                            const corTexto = (valor !== undefined && valor < 6.0) ? 'text-danger fw-bold' : 'text-dark';
-                            return `<td class="text-center ${corTexto}">${displayValor}</td>`;
-                        }).join('')}
-                        <td class="text-center bg-light border-start border-end fw-bold text-primary">${media.toFixed(1)}</td>
-                        <td class="text-center">${statusBadge}</td>
+                    <tr class="fade-in border-bottom" style="font-size: 0.9rem;">
+                        <td class="ps-3 py-3 fw-bold text-dark text-truncate" style="max-width: 250px;">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-2 fw-bold" style="width:32px; height:32px; font-size: 0.8rem">
+                                    ${a.nomeAluno.charAt(0)}
+                                </div>
+                                ${a.nomeAluno}
+                            </div>
+                        </td>
+                        ${colunasNotas}
+                        <td class="text-center bg-light border-start border-end text-primary fw-bold fs-6 align-middle">
+                            ${mediaDisplay.toFixed(1)}
+                        </td>
+                        <td class="text-center align-middle">
+                            ${statusObj}
+                        </td>
                     </tr>`;
             }).join('');
 
+        // --- Renderização Final ---
         appContent.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-3 bg-white p-3 rounded shadow-sm border-start border-primary border-4 fade-in">
+            <style>
+                .hover-trigger:hover .hover-show { opacity: 1 !important; }
+            </style>
+            <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-4 rounded-4 shadow-sm border-start border-primary border-4 fade-in">
                 <div>
-                    <h5 class="fw-bold mb-0 text-dark">${nomeMateria}</h5>
-                    <small class="text-muted">Diário de Classe • ${alunosDaTurma.length} Alunos</small>
+                    <h4 class="fw-bold mb-1 text-dark">${nomeMateria}</h4>
+                    <div class="text-muted small">
+                        <div class="d-flex gap-3 align-items-center">
+                            <span><i class="fas fa-users me-1"></i> ${alunosDaTurma.length} Alunos</span>
+                            <span class="badge ${isFinalizada ? 'bg-success' : 'bg-warning text-dark'}">
+                                ${isFinalizada ? 'FINALIZADA' : 'EM ANDAMENTO'}
+                            </span>
+                        </div>
+                    </div>
                 </div>
-                <button class="btn btn-sm btn-outline-secondary" onclick="instRenderMaterias()">
-                    <i class="fas fa-arrow-left me-1"></i> Voltar
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary px-3" onclick="instRenderMaterias()">
+                        <i class="fas fa-arrow-left me-2"></i> Voltar
+                    </button>
+                    ${!isFinalizada ? `
+                    <button class="btn btn-primary px-3" onclick="instFinalizarMateria(${idMateria}, '${nomeMateria}')">
+                        <i class="fas fa-check-double me-2"></i> Finalizar
+                    </button>` : ''}
+                </div>
             </div>
             
-            <div class="card border-0 shadow-sm fade-in">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden fade-in">
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead class="table-light">${tableHeader}</thead>
+                    <table class="table table-hover mb-0">
+                        <thead>${tableHeader}</thead>
                         <tbody>${tableBody}</tbody>
                     </table>
                 </div>
             </div>`;
+
     } catch (error) {
         console.error(error);
-        mostrarToast("Erro ao carregar notas.", "danger");
+        appContent.innerHTML = `<div class="alert alert-danger m-4 shadow-sm">Erro ao carregar notas: ${error.message}</div>`;
     }
 }
 
@@ -647,4 +801,127 @@ function instGarantirModalMateria() {
     </div>`;
 
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function instGarantirModalNota() {
+    if (document.getElementById('modalNota')) return;
+
+    const modalHTML = `
+    <div class="modal fade" id="modalNota" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header bg-primary text-white py-2">
+                    <h6 class="modal-title fw-bold"><i class="fas fa-pen-square me-2"></i>Lançar Nota</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <form id="formNota" onsubmit="event.preventDefault(); instSalvarNota()">
+                        <input type="hidden" id="notaIdMatricula">
+                        <input type="hidden" id="notaIdConfig">
+                        
+                        <div class="text-center mb-3">
+                            <h6 class="fw-bold text-dark mb-0" id="notaNomeAluno">Aluno</h6>
+                            <small class="text-muted" id="notaNomeAvaliacao">Avaliação</small>
+                        </div>
+
+                        <div class="form-floating mb-3">
+                            <input type="number" step="0.1" min="0" max="10" 
+                                   class="form-control text-center fw-bold fs-3 text-primary border-primary" 
+                                   id="notaValorInput" placeholder="0.0" required>
+                            <label for="notaValorInput" class="w-100 text-center">Nota (0 a 10)</label>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary shadow-sm">
+                                Confirmar Alteração
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function instAbrirModalNota(idMatricula, idConfig, nomeAluno, nomeAvaliacao, valorAtual) {
+    instGarantirModalNota();
+    
+    document.getElementById('notaIdMatricula').value = idMatricula;
+    document.getElementById('notaIdConfig').value = idConfig;
+    document.getElementById('notaNomeAluno').textContent = nomeAluno;
+    document.getElementById('notaNomeAvaliacao').textContent = nomeAvaliacao;
+    
+    const inputValor = document.getElementById('notaValorInput');
+    inputValor.value = valorAtual;
+    inputValor.classList.remove('is-invalid');
+
+    const modal = new bootstrap.Modal(document.getElementById('modalNota'));
+    modal.show();
+    
+    setTimeout(() => inputValor.focus(), 500);
+}
+
+async function instSalvarNota() {
+    const idMatricula = document.getElementById('notaIdMatricula').value;
+    const idConfiguracao = document.getElementById('notaIdConfig').value;
+    const inputValor = document.getElementById('notaValorInput');
+    const valor = parseFloat(inputValor.value);
+
+    // Validação
+    if (isNaN(valor) || valor < 0 || valor > 10) {
+        inputValor.classList.add('is-invalid');
+        mostrarToast("A nota deve ser um número entre 0 e 10.", "warning");
+        return;
+    }
+
+    const btnSubmit = document.querySelector('#formNota button[type="submit"]');
+    const txtOriginal = btnSubmit.innerHTML;
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
+
+    try {
+        const payload = {
+            idMatricula: parseInt(idMatricula),
+            idConfiguracao: parseInt(idConfiguracao),
+            nota: valor
+        };
+
+        await fetchAPI('/matriculas/notas', 'PUT', payload);
+        
+        const modalEl = document.getElementById('modalNota');
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+        
+        mostrarToast("Nota lançada com sucesso!", "success");
+        
+        const tituloMateria = document.querySelector('#appContent h4')?.innerText || 'Matéria';
+        
+        const matriculaObj = await fetchAPI(`/matriculas/${idMatricula}`);
+
+        if(matriculaObj && matriculaObj.idMateria) {
+            instVerAlunos(matriculaObj.idMateria, tituloMateria);
+        } else {
+             // Fallback caso não consiga pegar o ID da matéria: recarrega a página ou tenta pegar do DOM
+             // instVerAlunos(variavelGlobalIdMateria, tituloMateria);
+        }
+
+    } catch (e) {
+        console.error(e);
+        mostrarToast("Erro ao salvar nota: " + (e.message || "Erro desconhecido"), "danger");
+    } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = txtOriginal;
+    }
+}
+
+function instLimparTooltips() {
+    document.querySelectorAll('.tooltip').forEach(el => el.remove());
+    
+    const triggers = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    triggers.forEach(trigger => {
+        const instance = bootstrap.Tooltip.getInstance(trigger);
+        if (instance) instance.dispose();
+    });
 }

@@ -1,5 +1,61 @@
 // js/views/dashboard-prof.js
 
+// --- Autenticação ---
+function instLogout() {
+    localStorage.removeItem("sga_token");
+    localStorage.removeItem("sga_usuario");
+    localStorage.removeItem("usuarioLogado");
+    window.location.href = "pages/login.html";
+}
+
+// --- Menu Helper ---
+function atualizarMenuAtivo(textoItem) {
+    // Busca o elemento dentro da função para evitar erro de escopo global
+    const sidebarMenu = document.getElementById("sidebar-menu");
+    if (!sidebarMenu) return;
+
+    const itens = sidebarMenu.querySelectorAll('a');
+    itens.forEach(i => {
+        i.classList.remove('active');
+        if(i.innerText.includes(textoItem)) i.classList.add('active');
+    });
+}
+
+// --- Inicialização (Admin/Instituição) ---
+async function carregarInstituicao() {
+    // Declaração LOCAL para evitar conflito
+    const pageTitle = document.getElementById("page-title");
+    const sidebarMenu = document.getElementById("sidebar-menu");
+
+    if(pageTitle) pageTitle.innerHTML = '<span class="text-white fw-bold">Painel</span> Admin';
+
+    if(sidebarMenu) {
+        sidebarMenu.innerHTML = `
+            <div class="px-3 mb-2 text-white-50 small text-uppercase fw-bold" style="letter-spacing: 1px;">Menu Principal</div>
+            
+            <a href="#" onclick="instRenderHome()" class="list-group-item list-group-item-action active">
+                <i class="fas fa-chart-pie me-2"></i> Dashboard
+            </a>
+            
+            <div class="px-3 mt-4 mb-2 text-white-50 small text-uppercase fw-bold" style="letter-spacing: 1px;">Gestão</div>
+            
+            <a href="#" onclick="instRenderUsuarios()" class="list-group-item list-group-item-action">
+                <i class="fas fa-users me-2"></i> Usuários
+            </a>
+            <a href="#" onclick="instRenderCursos()" class="list-group-item list-group-item-action">
+                <i class="fas fa-graduation-cap me-2"></i> Cursos
+            </a>
+            <a href="#" onclick="instRenderMaterias()" class="list-group-item list-group-item-action">
+                <i class="fas fa-book-open me-2"></i> Matérias
+            </a>
+        `;
+    }
+
+    if (typeof window.instRenderHome === 'function') {
+        await window.instRenderHome();
+    }
+}
+
 // ============================================================================
 // FUNÇÕES DO PROFESSOR - DASHBOARD
 // ============================================================================
@@ -10,9 +66,12 @@
 function carregarProfessor() {
     console.log("[View] Iniciando Área do Professor...");
     
-    const elMenu = document.getElementById("sidebar-menu");
-    if (elMenu) {
-        elMenu.innerHTML = `
+    // Declaração LOCAL
+    const sidebarMenu = document.getElementById("sidebar-menu");
+    const pageTitle = document.getElementById('page-title');
+
+    if (sidebarMenu) {
+        sidebarMenu.innerHTML = `
             <div class="small fw-bold text-uppercase text-muted mb-2 px-3 mt-3">Menu Docente</div>
             <a href="#" onclick="profRenderHome(); return false;" class="list-group-item list-group-item-action active border-0 rounded-3 mb-1" id="menu-prof-home">
                 <i class="fas fa-home me-2"></i> Visão Geral
@@ -23,7 +82,6 @@ function carregarProfessor() {
         `;
     }
     
-    const pageTitle = document.getElementById('page-title');
     if (pageTitle) pageTitle.innerHTML = '<i class="fas fa-user-tie me-2"></i>Portal do Professor';
 
     profRenderHome();
@@ -34,6 +92,8 @@ function carregarProfessor() {
  */
 async function profRenderHome() {
     console.log("[Dashboard] Renderizando Home...");
+    
+    // Declaração LOCAL (Segura)
     const appContent = document.getElementById('appContent');
     
     if (!appContent) {
@@ -42,9 +102,12 @@ async function profRenderHome() {
     }
 
     // Atualiza Menu Ativo
-    document.querySelectorAll('#sidebar-menu .list-group-item').forEach(el => el.classList.remove('active'));
-    const homeBtn = document.getElementById('menu-prof-home');
-    if (homeBtn) homeBtn.classList.add('active');
+    const menuHome = document.getElementById('menu-prof-home');
+    if (menuHome) {
+        // Remove active de todos primeiro
+        document.querySelectorAll('#sidebar-menu .list-group-item').forEach(el => el.classList.remove('active'));
+        menuHome.classList.add('active');
+    }
 
     // Loading State
     appContent.innerHTML = `
@@ -54,15 +117,12 @@ async function profRenderHome() {
         </div>`;
 
     try {
-        // Verifica se getUser existe
         if (typeof getUser !== 'function') {
-            throw new Error("Função getUser() não está definida. Verifique o arquivo de autenticação.");
+            throw new Error("Função getUser() não está definida.");
         }
 
         const user = getUser();
         
-        // Buscando matérias do professor e todas as matrículas
-        // Adicionei tratamento individual caso uma das APIs falhe
         const [minhasMaterias, todasMatriculas] = await Promise.all([
             fetchAPI(`/materias?professorId=${user.id}`).catch(err => { console.error("Erro matérias:", err); return []; }), 
             fetchAPI('/matriculas').catch(err => { console.error("Erro matrículas:", err); return []; })
@@ -86,7 +146,7 @@ async function profRenderHome() {
 
         // Renderização Final
         appContent.innerHTML = `
-            <div>
+            <div class="fade-in">
                 <div class="d-flex justify-content-between align-items-end mb-4 border-bottom pb-3">
                     <div>
                         <h2 class="fw-bold text-dark mb-0">${saudacao}, ${nomeProf}.</h2>
@@ -167,18 +227,15 @@ async function profRenderHome() {
             <div class="alert alert-danger m-4 rounded-3 shadow-sm">
                 <h5 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>Erro ao carregar Dashboard</h5>
                 <p class="mb-0">${err.message}</p>
-                <small class="d-block mt-2">Tente recarregar a página ou contate o suporte.</small>
             </div>`;
     }
 }
 
 /**
  * Gera o HTML de um Card individual
- * OBS: Chama funções definidas em turmas.js (profVerAlunos, profAbrirModalConfiguracao)
  */
 function renderCardMateriaProfessor(materia) {
     const qtdAvaliacoes = (materia.avaliacoes || []).length;
-    // Sanitização para evitar erros de aspas simples que quebram o HTML
     const nomeSafe = (materia.nome || 'Matéria sem nome').replace(/'/g, "&apos;");
     const idSafe = materia.id;
     

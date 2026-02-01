@@ -19,7 +19,7 @@ public class DadosListagemMatriculaMateria {
     private String situacao;
     private LocalDateTime data;
     private List<DadosNota> notas = new ArrayList<>();
-    private boolean ativa = true;
+    private boolean ativa;
 
     public DadosListagemMatriculaMateria() {}
 
@@ -30,16 +30,14 @@ public class DadosListagemMatriculaMateria {
         this.idMateria = matricula.getMateria().getId();
         this.nomeMateria = matricula.getMateria().getNome();
         this.nomeCurso = matricula.getMateria().getCurso().getNome();
-        this.mediaFinal = matricula.getMediaFinal();
-        this.situacao = matricula.getSituacao();
         this.data = matricula.getDataMatricula();
+        
+        this.ativa = matricula.isAtiva();
 
-        if (matricula.getMateria().isEncerrada()) {
-            this.mediaFinal = matricula.getNotaFinal();
-            this.situacao = matricula.getStatus();
-        } else {
-            this.mediaFinal = matricula.getMediaFinal();
-            this.situacao = matricula.getSituacao();
+        this.mediaFinal = matricula.getNotaFinal();
+
+        if (matricula.getStatus() != null) {
+            this.situacao = matricula.getStatus().name();
         }
 
         if (matricula.getNotasLancadas() != null) {
@@ -49,7 +47,7 @@ public class DadosListagemMatriculaMateria {
         }
     }
 
-    // --- GETTERS E SETTERS DA CLASSE PRINCIPAL ---
+    // --- GETTERS E SETTERS ---
     public Long getId() {return id;}
     public void setId(Long id) {this.id = id;}
     public Long getIdAluno() {return idAluno;}

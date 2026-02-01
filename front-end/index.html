@@ -250,6 +250,83 @@
         </div>
     </div>
 
+    <div class="modal fade" id="modalMatricula" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header modal-header-custom">
+                    <h5 class="modal-title" id="modalMatriculaTitle">Realizar Matrícula</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="formMatricula" novalidate>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-secondary">SELECIONE O ALUNO</label>
+                            <select id="matriculaAlunoSelect" class="form-select" required>
+                                <option value="">Carregando alunos...</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-secondary">SELECIONE O CURSO</label>
+                            <select id="matriculaCursoSelect" class="form-select" required>
+                                <option value="">Carregando cursos...</option>
+                            </select>
+                        </div>
+
+                        <div class="alert alert-info small d-flex align-items-center">
+                            <i class="fas fa-info-circle me-2 fs-5"></i>
+                            <div>
+                                Ao matricular, o aluno terá acesso imediato a todas as matérias do curso.
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success px-4" onclick="instSalvarMatricula()">Confirmar Matrícula</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalLancarNotas" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-pen-alt me-2"></i>Lançamento de Notas</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="d-flex justify-content-between mb-3 align-items-center">
+                        <h5 id="notasAlunoNome" class="fw-bold m-0 text-dark">Nome do Aluno</h5>
+                        <span id="notasMateriaNome" class="badge bg-secondary">Matéria</span>
+                    </div>
+                    
+                    <form id="formLancarNotas">
+                        <input type="hidden" id="notasMatriculaId">
+                        <div class="table-responsive">
+                            <table class="table table-bordered align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Avaliação</th>
+                                        <th style="width: 120px;">Nota (0-10)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaNotasInputs">
+                                    </tbody>
+                            </table>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary px-4" onclick="profSalvarNotas()">Salvar Notas</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="modalConfirmarExclusao" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
@@ -293,7 +370,9 @@
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <script src="js/api.js"></script>       <script src="js/utils.js"></script>     <script src="js/dashboard.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/dashboard.js"></script>
     
     <script src="js/views/perfil.js"></script>
 
@@ -304,7 +383,6 @@
                 const s = document.createElement('script');
                 s.src = src;
                 s.onload = resolve;
-                // Tratamento de erro para não travar a aplicação
                 s.onerror = () => {
                     console.warn(`Aviso: Script opcional não encontrado: ${src}`);
                     resolve(); // Continua mesmo com erro
@@ -317,24 +395,45 @@
             try {
                 const tipo = user.tipo;
                 
-                // Carrega os scripts específicos baseados no tipo de usuário
+                // --- INSTITUIÇÃO ---
                 if (tipo === 'INSTITUICAO') {
+                    // Views Administrativas
                     await loadScript('js/views/dashboard-inst.js');
                     await loadScript('js/views/usuarios.js');
                     await loadScript('js/views/cursos.js');
                     await loadScript('js/views/materias.js');
-                    await loadScript('js/views/instituicao.js');
+                    await loadScript('js/views/matriculas.js'); // Novo: Gerenciar Matrículas
+                    await loadScript('js/views/instituicao.js'); // Controlador principal
                     
                     if (typeof carregarInstituicao === 'function') carregarInstituicao();
                 } 
+                
+                // --- PROFESSOR ---
                 else if (tipo === 'PROFESSOR') {
+                    // Views Docentes
                     await loadScript('js/views/dashboard-prof.js');
                     await loadScript('js/views/turmas.js');
+                    await loadScript('js/views/notas.js');
+                    await loadScript('js/views/perfil.js');
+                    await loadScript('js/views/materias.js');
+                    await loadScript('js/views/diario.js');
+                    
                     if (typeof carregarProfessor === 'function') carregarProfessor();
                 }
+                
+                // --- ALUNO ---
                 else if (tipo === 'ALUNO') {
-                    await loadScript('js/views/dashboard-aluno.js');
-                    if (typeof carregarAluno === 'function') carregarAluno();
+                    await Promise.all([
+                        loadScript('js/views/dashboard-aluno.js'),
+                        loadScript('js/views/aluno-curso.js'),
+                        loadScript('js/views/cursos.js'),
+                        loadScript('js/views/materias.js'),
+                        loadScript('js/views/notas.js'),
+                        loadScript('js/views/matriculas.js'),
+                        loadScript('js/views/perfil.js')
+                    ]);
+                    
+                    if (typeof carregarAluno === 'function') carregarAluno();                   
                 }
 
                 // Finaliza o carregamento visual e exibe a tela
@@ -350,7 +449,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             // 1. Verifica se o api.js carregou corretamente
             if (typeof getUser !== 'function') {
-                console.error("FATAL: api.js não carregou. Verifique o caminho do arquivo.");
+                console.error("FATAL: api.js não carregou.");
                 alert("Erro de sistema: API não carregada.");
                 return;
             }
@@ -358,13 +457,12 @@
             // 2. Verifica autenticação
             const user = getUser();
             if (!user) {
-                // CORREÇÃO AQUI: Aponta para a pasta 'pages'
                 console.log("Usuário não logado. Redirecionando para login...");
                 window.location.href = 'pages/login.html'; 
                 return;
             }
 
-            // 3. Atualiza interface básica com dados do usuário
+            // 3. Atualiza interface básica
             const display = document.getElementById('user-name-display');
             if (display) display.textContent = user.nome || "Usuário";
 

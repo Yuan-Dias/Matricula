@@ -60,8 +60,10 @@ public class Matricula {
         this.matriculaCurso = matriculaCurso;
     }
 
+    // Método transiente para cálculo "on the fly" se necessário,
+    // mas o valor persistido oficial deve ir para o campo notaFinal
     @Transient
-    public Double getMediaFinal() {
+    public Double getMediaCalculada() {
         if (notasLancadas == null || notasLancadas.isEmpty()) return 0.0;
 
         double somaPonderada = 0.0;
@@ -69,8 +71,8 @@ public class Matricula {
         Nota notaRecuperacao = null;
 
         for (Nota n : notasLancadas) {
-            if (n.getConfiguracao().getDescricaoNota().equalsIgnoreCase("RECUPERACAO") || 
-                n.getConfiguracao().getDescricaoNota().equalsIgnoreCase("PROVA FINAL")) {
+            String desc = n.getConfiguracao().getDescricaoNota();
+            if (desc != null && (desc.equalsIgnoreCase("RECUPERACAO") || desc.equalsIgnoreCase("PROVA FINAL"))) {
                 notaRecuperacao = n;
             } else {
                 double peso = n.getConfiguracao().getPeso();
@@ -82,7 +84,6 @@ public class Matricula {
         if (somaPesos == 0) return 0.0;
         double mediaParcial = somaPonderada / somaPesos;
 
-        // LÓGICA DA RECUPERAÇÃO:
         if (notaRecuperacao != null && mediaParcial < 7.0) {
             double mediaComRec = (mediaParcial + notaRecuperacao.getValor()) / 2;
             return Math.round(mediaComRec * 100.0) / 100.0;
@@ -92,32 +93,9 @@ public class Matricula {
     }
 
     @Transient
-    public String getSituacao() {
-        if (this.status == StatusMatricula.HISTORICO) return "HISTORICO";
-        if (this.status == StatusMatricula.CANCELADO) return "CANCELADO";
-
-        if (notasLancadas == null || notasLancadas.isEmpty()) return "CURSANDO";
-
-        double somaPesosAtuais = notasLancadas.stream()
-                                        .mapToDouble(n -> n.getConfiguracao().getPeso())
-                                        .sum();
-        double media = getMediaFinal();
-
-        if (somaPesosAtuais >= 10.0) {
-            if (media >= 7.0) return "APROVADO";
-            if (media >= 5.0) return "RECUPERACAO";
-            return "REPROVADO";
-        }
-
-        if (media < 5.0 && somaPesosAtuais > 5.0) {
-            return "RECUPERACAO";
-        }
-
-        return "CURSANDO";
-    }
-
-    public void setSituacao(StatusMatricula status) {
-        this.status = status;
+    public String getSituacaoDescricao() {
+        // Retorna a representação em String do status atual
+        return this.status != null ? this.status.toString() : "DESCONHECIDO";
     }
 
     // --- GETTERS E SETTERS ---
@@ -170,8 +148,9 @@ public class Matricula {
         this.notasLancadas = notasLancadas;
     }
 
-    public String getStatus() {
-        return status.toString();
+    // CORRIGIDO: Deve retornar o Enum, não String
+    public StatusMatricula getStatus() {
+        return status;
     }
 
     public void setStatus(StatusMatricula status) {
@@ -185,9 +164,11 @@ public class Matricula {
     public void setNotaFinal(Double notaFinal) {
         this.notaFinal = notaFinal;
     }   
+
     public boolean isAtiva() {
         return ativa;
     }
+
     public void setAtiva(boolean ativa) {
         this.ativa = ativa;
     }

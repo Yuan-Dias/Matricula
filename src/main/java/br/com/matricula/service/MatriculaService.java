@@ -1,5 +1,6 @@
 package br.com.matricula.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,6 +16,7 @@ import br.com.matricula.model.ConfiguracaoAvaliacao;
 import br.com.matricula.model.Matricula;
 import br.com.matricula.model.MatriculaCurso;
 import br.com.matricula.model.Nota;
+import br.com.matricula.model.StatusMatricula;
 import br.com.matricula.model.TipoUsuario;
 import br.com.matricula.model.Usuario;
 import br.com.matricula.repository.AlunoRepository;
@@ -70,34 +72,64 @@ public class MatriculaService {
         matriculaCursoRepository.save(new MatriculaCurso(aluno, curso));
     }
 
+    /**
+     * REALIZAR MATRÍCULA EM DISCIPLINA
+     * Lógica Inteligente: Cria nova ou Reativa antiga (se reprovado)
+     */
     @SuppressWarnings("null")
     @Transactional
     public void matricularNaMateria(DadosMatricula dados, Usuario usuarioLogado) {
+        // Validação de segurança básica
         if (usuarioLogado.getTipo() == TipoUsuario.ALUNO && !usuarioLogado.getId().equals(dados.getIdAluno())) {
             throw new RuntimeException("Um aluno não pode matricular outro aluno.");
         }
 
         var aluno = alunoRepository.findById(dados.getIdAluno())
                 .orElseThrow(() -> new RuntimeException("Aluno não encontrado"));
+        
         var materia = materiaRepository.findById(dados.getIdMateria())
                 .orElseThrow(() -> new RuntimeException("Matéria não encontrada"));
 
+        // Verifica vínculo com o curso principal
         var vinculoCurso = matriculaCursoRepository
                 .findByAlunoIdAndCursoId(aluno.getId(), materia.getCurso().getId())
                 .stream().findFirst()
                 .orElseThrow(() -> new RuntimeException("O aluno deve estar matriculado no curso " + materia.getCurso().getNome() + " antes."));
 
-        boolean possuiAtiva = matriculaRepository.findByAlunoLogin(aluno.getLogin()).stream()
+        // BUSCA MATRÍCULA EXISTENTE (Se houver)
+        Optional<Matricula> matriculaExistente = matriculaRepository.findByAlunoLogin(aluno.getLogin()).stream()
                 .filter(m -> m.getMateria().getId().equals(dados.getIdMateria()))
-                .anyMatch(m -> {
-                    String statusAtual = m.getStatus(); 
-                    return statusAtual.equals("CURSANDO") || statusAtual.equals("APROVADO") || statusAtual.equals("RECUPERACAO");
-                });
+                .findFirst();
 
-        if (possuiAtiva) {
-            throw new RuntimeException("Aluno já possui uma matrícula ativa ou concluída nesta disciplina.");
+        if (matriculaExistente.isPresent()) {
+            Matricula m = matriculaExistente.get();
+            StatusMatricula status = m.getStatus();
+
+            // CENÁRIO 1: Já está cursando ou já passou -> ERRO
+            if (status == StatusMatricula.CURSANDO || status == StatusMatricula.RECUPERACAO) {
+                throw new RuntimeException("Aluno já possui uma matrícula ativa nesta disciplina.");
+            }
+            if (status == StatusMatricula.APROVADO) {
+                throw new RuntimeException("Aluno já foi aprovado nesta disciplina.");
+            }
+
+            // CENÁRIO 2: Reprovado ou Cancelado -> REATIVAR (Refazer matéria)
+            // Aqui fazemos o UPDATE em vez de tentar criar novo (que daria erro de duplicidade)
+            m.setStatus(StatusMatricula.CURSANDO);
+            m.setAtiva(true);
+            m.setNotaFinal(null); // Limpa média anterior
+            m.setDataMatricula(LocalDateTime.now()); // Atualiza data de início para hoje
+            
+            // Limpa as notas antigas para começar do zero
+            if (m.getNotasLancadas() != null) {
+                m.getNotasLancadas().clear();
+            }
+            
+            matriculaRepository.save(m);
+            return; // Sai do método com sucesso
         }
 
+        // CENÁRIO 3: Nunca cursou -> CRIA NOVA
         var novaMatricula = new Matricula(aluno, materia, vinculoCurso);
         matriculaRepository.save(novaMatricula);
     }
@@ -109,7 +141,7 @@ public class MatriculaService {
     }
 
     /**
-     * LANÇAR NOTA (Nova Lógica para múltiplas provas)
+     * LANÇAR NOTA 
      */
     @SuppressWarnings("null")
     @Transactional
@@ -117,7 +149,7 @@ public class MatriculaService {
         var matricula = matriculaRepository.findById(dados.getIdMatricula())
                 .orElseThrow(() -> new RuntimeException("Matrícula não encontrada"));
 
-        if ("HISTORICO".equals(matricula.getStatus())) {
+        if (matricula.getStatus() == StatusMatricula.HISTORICO) { // ou verifique se !ativa
             throw new RuntimeException("Esta matrícula já foi consolidada no histórico e não pode ser alterada.");
         }
 
@@ -134,13 +166,19 @@ public class MatriculaService {
 
         Optional<Nota> notaExistente = notaRepository.findByMatriculaIdAndConfiguracaoId(matricula.getId(), configuracao.getId());
 
-        if (notaExistente.isPresent()) {
-            Nota nota = notaExistente.get();
-            nota.setValor(dados.getNota());
-            notaRepository.save(nota);
+        if (dados.getNota() == null) {
+            if (notaExistente.isPresent()) {
+                notaRepository.delete(notaExistente.get());
+            }
         } else {
-            Nota novaNota = new Nota(matricula, configuracao, dados.getNota());
-            notaRepository.save(novaNota);
+            if (notaExistente.isPresent()) {
+                Nota nota = notaExistente.get();
+                nota.setValor(dados.getNota());
+                notaRepository.save(nota);
+            } else {
+                Nota novaNota = new Nota(matricula, configuracao, dados.getNota());
+                notaRepository.save(novaNota);
+            }
         }
     }
 
@@ -180,6 +218,14 @@ public class MatriculaService {
         if (!matriculaRepository.existsById(id)) {
             throw new RuntimeException("Matrícula em disciplina não encontrada.");
         }
+        
+        // Opcional: Se quiser permitir que o aluno cancele e isso fique registrado
+        // em vez de deletar, altere para:
+        // Matricula m = buscarPorId(id);
+        // m.setStatus(StatusMatricula.CANCELADO);
+        // m.setAtiva(false);
+        // matriculaRepository.save(m);
+        
         matriculaRepository.deleteById(id);
     }
 

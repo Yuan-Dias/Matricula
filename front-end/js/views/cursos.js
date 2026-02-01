@@ -1,8 +1,24 @@
-// js/views/cursos.js
+/**
+ * js/views/cursos.js
+ * Gerenciamento de Cursos (Admin) e Visualização de Progresso/Catálogo (Aluno)
+ */
 
-let cursoIdParaExcluir = null;
+// ============================================================================
+// 1. VARIÁVEIS GLOBAIS
+// ============================================================================
+// ATENÇÃO: Usamos 'var' para evitar "Uncaught SyntaxError: redeclaration" 
+// ao navegar pelo menu repetidas vezes.
+var listaCursosGlobal = [];
+var listaProfessoresGlobal = [];
+var cursoIdParaExcluir = null;
 
-// --- Renderização da Estrutura Principal ---
+// ============================================================================
+// 2. LÓGICA DO ADMINISTRADOR (Gestão de Cursos)
+// ============================================================================
+
+/**
+ * Renderiza a tela principal de gestão de cursos
+ */
 async function instRenderCursos() {
     atualizarMenuAtivo('Cursos');
     const target = document.getElementById('appContent');
@@ -30,13 +46,13 @@ async function instRenderCursos() {
                             <div class="input-group input-group-solid">
                                 <span class="input-group-text bg-light border-0 ps-3"><i class="fas fa-search text-muted"></i></span>
                                 <input type="text" id="buscaCursoInput" class="form-control bg-light border-0 shadow-none" 
-                                       placeholder="Buscar curso, descrição..." oninput="instFiltrarCursos()">
+                                       placeholder="Buscar curso, descrição..." oninput="instFiltrarCursosLocal()">
                             </div>
                         </div>
 
                         <div class="col-md-6 text-md-end">
-                            <button class="btn btn-light btn-sm text-muted" onclick="instFiltrarCursos()">
-                                <i class="fas fa-sync-alt me-1"></i> Atualizar
+                            <button class="btn btn-light btn-sm text-muted" onclick="instCarregarDadosCursos()">
+                                <i class="fas fa-sync-alt me-1"></i> Atualizar Dados
                             </button>
                         </div>
                     </div>
@@ -59,164 +75,240 @@ async function instRenderCursos() {
                 </div>
             </div>
         </div>
+        
+        <div class="modal fade" id="modalCurso" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header bg-white border-bottom-0">
+                        <h5 class="modal-title fw-bold" id="modalCursoTitle">Novo Curso</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <form id="formCurso" class="needs-validation" novalidate onsubmit="return false;">
+                            <input type="hidden" id="cursoId">
+                            
+                            <div class="mb-3">
+                                <label for="cursoNome" class="form-label small fw-bold text-muted text-uppercase">Nome do Curso</label>
+                                <input type="text" class="form-control" id="cursoNome" required placeholder="Ex: Engenharia de Software">
+                                <div class="invalid-feedback">O nome é obrigatório.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="cursoDescricao" class="form-label small fw-bold text-muted text-uppercase">Descrição</label>
+                                <textarea class="form-control" id="cursoDescricao" rows="2" placeholder="Breve resumo do curso..."></textarea>
+                            </div>
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-6">
+                                    <label for="cursoCargaHoraria" class="form-label small fw-bold text-muted text-uppercase">Carga (h)</label>
+                                    <input type="number" class="form-control" id="cursoCargaHoraria" required placeholder="Ex: 3600">
+                                </div>
+                                <div class="col-6">
+                                    <label for="cursoCapacidade" class="form-label small fw-bold text-muted text-uppercase">Vagas Totais</label>
+                                    <input type="number" class="form-control" id="cursoCapacidade" required placeholder="Ex: 40">
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="cursoProfessorId" class="form-label small fw-bold text-muted text-uppercase">Coordenador (Professor)</label>
+                                <select class="form-select" id="cursoProfessorId">
+                                    <option value="">Carregando professores...</option>
+                                </select>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary" onclick="instSalvarCurso()">
+                                    <i class="fas fa-save me-2"></i> Salvar Curso
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="modalConfirmarExclusao" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-body text-center p-4">
+                        <div class="mb-3 text-danger"><i class="fas fa-exclamation-triangle fa-3x"></i></div>
+                        <h5 class="fw-bold">Excluir Curso?</h5>
+                        <p class="text-muted small" id="textoConfirmacaoExclusao"></p>
+                        <div class="d-flex gap-2 justify-content-center mt-4">
+                            <button type="button" class="btn btn-light btn-sm px-3" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-danger btn-sm px-3">Sim, Excluir</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
 
-    // Carrega os dados iniciais
-    instFiltrarCursos();
+    // Carrega os dados da API
+    await instCarregarDadosCursos();
 }
 
-// --- Lógica de Busca e Preenchimento da Tabela ---
-async function instFiltrarCursos() {
-    const termo = document.getElementById('buscaCursoInput')?.value.toLowerCase() || "";
+/**
+ * Busca dados da API e preenche a tabela
+ */
+async function instCarregarDadosCursos() {
     const container = document.getElementById('cursosTableBody');
-    if (!container) return;
+    if(container) container.innerHTML = '<tr><td colspan="4" class="text-center p-5 text-muted"><i class="fas fa-circle-notch fa-spin me-2"></i> Atualizando...</td></tr>';
 
     try {
-        // 1. Busca Cursos e Usuários
-        const [cursos, usuarios] = await Promise.all([
+        // 1. Busca Cursos, Usuários e todas as matrículas para contagem real
+        const [cursos, usuarios, todasMatriculas] = await Promise.all([
             fetchAPI('/cursos'),
-            fetchAPI('/usuarios')
+            fetchAPI('/usuarios'),
+            fetchAPI('/matriculas') 
         ]);
 
-        const professores = usuarios.filter(u => u.tipo === 'PROFESSOR');
+        listaProfessoresGlobal = usuarios.filter(u => u.tipo === 'PROFESSOR');
 
-        // 2. Processa cada curso para buscar o Nome do Professor E as Vagas Preenchidas
-        const cursosDetalhados = await Promise.all(cursos.map(async (c) => {
+        // 2. Processa os dados para enriquecer o objeto curso
+        listaCursosGlobal = cursos.map(c => {
+            // Resolver Professor
             let nomeProf = c.nomeProfessor;
             let idProf = c.idProfessor;
 
-            // Lógica de Correção:
-            // Se a API trouxe o nome, mas não o ID, procuramos o ID na lista de usuários carregada
+            // Tenta casar ID e Nome
             if (!idProf && nomeProf) {
-                const professorEncontrado = professores.find(p => p.nome === nomeProf);
-                if (professorEncontrado) {
-                    idProf = professorEncontrado.id;
-                }
+                const professorEncontrado = listaProfessoresGlobal.find(p => p.nome === nomeProf);
+                if (professorEncontrado) idProf = professorEncontrado.id;
             }
-
-            // Fallback inverso: Se tem ID mas não tem nome (caso a API mude comportamento)
             if (idProf && !nomeProf) {
-                const prof = professores.find(p => p.id === idProf);
+                const prof = listaProfessoresGlobal.find(p => p.id === idProf);
                 if (prof) nomeProf = prof.nome;
             }
 
-            // Resolver vagas preenchidas
-            let ocupadas = 0;
-            try {
-                const matriculas = await fetchAPI(`/matriculas/curso/${c.id}`);
-                const alunosUnicos = new Set(matriculas.map(m => m.idAluno));
-                ocupadas = alunosUnicos.size;
-            } catch (err) {
-                console.warn(`Erro ao contar vagas para o curso ${c.id}`, err);
-            }
-
+            // Resolver Contagem de Vagas (Filtrando matriculas deste curso)
+            const matriculasDoCurso = todasMatriculas ? todasMatriculas.filter(m => m.idCurso === c.id || (m.curso && m.curso.id === c.id)) : [];
+            // Remove duplicados de aluno para contagem de vagas
+            const alunosUnicos = new Set(matriculasDoCurso.map(m => m.idAluno || (m.aluno ? m.aluno.id : null)));
+            
             return { 
                 ...c, 
-                idProfessor: idProf, // Garante que o ID vai para o botão de editar
+                idProfessor: idProf, 
                 professorNome: nomeProf,
-                vagasOcupadas: ocupadas 
+                vagasOcupadas: alunosUnicos.size 
             };
-        }));
+        });
 
-        // 3. Filtragem local
-        let cursosFiltrados = cursosDetalhados.filter(c => 
-            c.nome.toLowerCase().includes(termo) || 
-            (c.descricao && c.descricao.toLowerCase().includes(termo))
-        );
+        // Ordenação Inicial (Alfabética)
+        listaCursosGlobal.sort((a, b) => a.nome.localeCompare(b.nome));
 
-        // Ordenação Simples
-        cursosFiltrados.sort((a, b) => a.nome.localeCompare(b.nome));
+        instRenderizarTabela(listaCursosGlobal);
 
-        if (cursosFiltrados.length === 0) {
-            container.innerHTML = `<tr><td colspan="4" class="text-center p-5 text-muted">Nenhum curso encontrado</td></tr>`;
-            return;
-        }
-
-        // 4. Renderização HTML
-        container.innerHTML = cursosFiltrados.map(c => {
-            const avatarColor = 'bg-soft-primary text-primary';
-            
-            // Cálculo da barra de progresso
-            const capacidade = c.capacidade || 1; 
-            const ocupadas = c.vagasOcupadas || 0;
-            const porcentagem = Math.min(100, Math.round((ocupadas / capacidade) * 100));
-            
-            // Cor da barra baseada na lotação
-            let progressClass = 'bg-success';
-            if(porcentagem > 70) progressClass = 'bg-warning';
-            if(porcentagem >= 95) progressClass = 'bg-danger';
-
-            // HTML do Professor
-            let coordDisplay = `<span class="text-muted small fst-italic">Não atribuído</span>`;
-            if (c.professorNome) {
-                coordDisplay = `
-                    <div class="d-flex align-items-center">
-                        <div class="avatar-circle-sm bg-light text-secondary me-2 small" style="font-size:10px;">
-                            ${getIniciais(c.professorNome)}
-                        </div>
-                        <span class="text-dark small fw-medium">${c.professorNome}</span>
-                    </div>`;
-            }
-
-            // Precisamos escapar as aspas simples para o JSON dentro do HTML
-            const dadosJson = JSON.stringify(c).replace(/'/g, "&#39;");
-
-            return `
-            <tr>
-                <td class="ps-4 py-3">
-                    <div class="d-flex align-items-center">
-                        <div class="avatar-circle ${avatarColor} me-3 flex-shrink-0">
-                            <i class="fas fa-graduation-cap"></i>
-                        </div>
-                        <div>
-                            <div class="fw-bold text-dark">${c.nome}</div>
-                            <div class="small text-muted text-truncate" style="max-width: 250px;">
-                                ${c.descricao || 'Sem descrição'}
-                            </div>
-                            <div class="small text-muted mt-1">
-                                <i class="far fa-clock me-1"></i> ${c.cargaHoraria}h
-                            </div>
-                        </div>
-                    </div>
-                </td>
-                <td>
-                    <div class="d-flex flex-column" style="max-width: 180px;">
-                        <div class="d-flex justify-content-between small mb-1">
-                            <span class="fw-bold text-dark">${ocupadas} <span class="text-muted fw-normal">/ ${c.capacidade}</span></span>
-                            <span class="text-muted">${porcentagem}%</span>
-                        </div>
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar ${progressClass}" role="progressbar" style="width: ${porcentagem}%" 
-                                aria-valuenow="${ocupadas}" aria-valuemin="0" aria-valuemax="${c.capacidade}"></div>
-                        </div>
-                        <div class="small text-muted mt-1" style="font-size: 0.75rem;">Vagas Preenchidas</div>
-                    </div>
-                </td>
-                <td>${coordDisplay}</td>
-                <td class="text-end pe-4">
-                    <div class="d-flex justify-content-end gap-2">
-                        <button class="btn-action-icon btn-action-edit" title="Editar" 
-                            onclick='instAbrirModalCurso(${dadosJson})'>
-                            <i class="fas fa-pen"></i>
-                        </button>
-                        <button class="btn-action-icon btn-action-delete" title="Excluir" 
-                            onclick="instPreparaExclusaoCurso(${c.id}, '${c.nome.replace(/'/g, "\\'")}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `}).join('');
-
-    } catch (e) {
-        console.error(e);
-        container.innerHTML = '<tr><td colspan="4" class="text-center text-danger p-4">Erro ao carregar cursos.</td></tr>';
+    } catch (error) {
+        console.error("Erro ao carregar cursos:", error);
+        if(container) container.innerHTML = '<tr><td colspan="4" class="text-center text-danger p-4">Erro ao carregar dados. Tente atualizar.</td></tr>';
     }
 }
 
-// --- Modal e Formulário ---
+/**
+ * Filtro local (input de busca)
+ */
+function instFiltrarCursosLocal() {
+    const termo = document.getElementById('buscaCursoInput')?.value.toLowerCase() || "";
+    
+    const cursosFiltrados = listaCursosGlobal.filter(c => 
+        c.nome.toLowerCase().includes(termo) || 
+        (c.descricao && c.descricao.toLowerCase().includes(termo))
+    );
 
-async function instAbrirModalCurso(dados = null) {
+    instRenderizarTabela(cursosFiltrados);
+}
+
+/**
+ * Gera o HTML das linhas da tabela
+ */
+function instRenderizarTabela(cursos) {
+    const container = document.getElementById('cursosTableBody');
+    if (!container) return;
+
+    if (!cursos || cursos.length === 0) {
+        container.innerHTML = `<tr><td colspan="4" class="text-center p-5 text-muted">Nenhum curso encontrado</td></tr>`;
+        return;
+    }
+
+    container.innerHTML = cursos.map(c => {
+        const avatarColor = 'bg-primary bg-opacity-10 text-primary';
+        
+        // Cálculo da barra de progresso
+        const capacidade = c.capacidade || 1; 
+        const ocupadas = c.vagasOcupadas || 0;
+        const porcentagem = Math.min(100, Math.round((ocupadas / capacidade) * 100));
+        
+        // Cor da barra
+        let progressClass = 'bg-success';
+        if(porcentagem > 70) progressClass = 'bg-warning';
+        if(porcentagem >= 95) progressClass = 'bg-danger';
+
+        // HTML do Coordenador
+        let coordDisplay = `<span class="text-muted small fst-italic">Não atribuído</span>`;
+        if (c.professorNome) {
+            coordDisplay = `
+                <div class="d-flex align-items-center">
+                    <div class="rounded-circle bg-light text-secondary me-2 small d-flex align-items-center justify-content-center border" style="width:24px; height:24px; font-size:10px;">
+                        ${getIniciais(c.professorNome)}
+                    </div>
+                    <span class="text-dark small fw-medium">${c.professorNome}</span>
+                </div>`;
+        }
+
+        return `
+        <tr>
+            <td class="ps-4 py-3">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-circle ${avatarColor} me-3 flex-shrink-0 d-flex align-items-center justify-content-center" style="width:40px; height:40px;">
+                        <i class="fas fa-graduation-cap"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold text-dark">${c.nome}</div>
+                        <div class="small text-muted text-truncate" style="max-width: 250px;">
+                            ${c.descricao || 'Sem descrição'}
+                        </div>
+                        <div class="small text-muted mt-1">
+                            <i class="far fa-clock me-1"></i> ${c.cargaHoraria}h
+                        </div>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <div class="d-flex flex-column" style="max-width: 180px;">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="fw-bold text-dark">${ocupadas} <span class="text-muted fw-normal">/ ${c.capacidade}</span></span>
+                        <span class="text-muted">${porcentagem}%</span>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar ${progressClass}" role="progressbar" style="width: ${porcentagem}%" 
+                            aria-valuenow="${ocupadas}" aria-valuemin="0" aria-valuemax="${c.capacidade}"></div>
+                    </div>
+                    <div class="small text-muted mt-1" style="font-size: 0.75rem;">Vagas Preenchidas</div>
+                </div>
+            </td>
+            <td>${coordDisplay}</td>
+            <td class="text-end pe-4">
+                <div class="d-flex justify-content-end gap-2">
+                    <button class="btn btn-sm btn-outline-primary" title="Editar" 
+                        onclick="instAbrirModalCurso(${c.id})">
+                        <i class="fas fa-pen"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" title="Excluir" 
+                        onclick="instPreparaExclusaoCurso(${c.id}, '${c.nome.replace(/'/g, "\\'")}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `}).join('');
+}
+
+// ============================================================================
+// 3. FUNÇÕES DE MODAL E CRUD (ADMIN)
+// ============================================================================
+
+async function instAbrirModalCurso(idCurso = null) {
     const form = document.getElementById('formCurso');
     if (form) {
         form.reset();
@@ -227,7 +319,13 @@ async function instAbrirModalCurso(dados = null) {
     const idInput = document.getElementById('cursoId');
     const selectProf = document.getElementById('cursoProfessorId');
 
-    // Título e ID
+    let dados = null;
+
+    if (idCurso) {
+        dados = listaCursosGlobal.find(c => c.id === idCurso);
+    }
+
+    // Popula o Modal
     if (dados) {
         title.innerText = "Editar Curso";
         idInput.value = dados.id;
@@ -240,35 +338,29 @@ async function instAbrirModalCurso(dados = null) {
         idInput.value = '';
     }
 
-    // Carregar Select de Professores E selecionar o correto
-    // Passamos o ID se estiver editando, ou null se for novo
-    await instCarregarSelectProfessores(selectProf, dados ? dados.idProfessor : null);
+    // Carrega Select de Professores
+    if (listaProfessoresGlobal.length === 0) {
+        try {
+            const usuarios = await fetchAPI('/usuarios');
+            listaProfessoresGlobal = usuarios.filter(u => u.tipo === 'PROFESSOR');
+        } catch(e) { console.error(e); }
+    }
+    
+    instPreencherSelectProfessores(selectProf, dados ? dados.idProfessor : null);
 
     const modal = new bootstrap.Modal(document.getElementById('modalCurso'));
     modal.show();
 }
 
-async function instCarregarSelectProfessores(selectElement, valorSelecionado) {
-    selectElement.innerHTML = '<option value="">Carregando...</option>';
-    try {
-        const usuarios = await fetchAPI('/usuarios');
-        const professores = usuarios.filter(u => u.tipo === 'PROFESSOR');
-        
-        let html = '<option value="">Selecione um coordenador...</option>';
-        professores.forEach(p => {
-            html += `<option value="${p.id}">${p.nome}</option>`;
-        });
-        
-        selectElement.innerHTML = html;
-
-        if (valorSelecionado !== null && valorSelecionado !== undefined) {
-            selectElement.value = valorSelecionado;
-        }
-
-    } catch (e) {
-        selectElement.innerHTML = '<option value="">Erro ao carregar</option>';
-        console.error(e);
-    }
+function instPreencherSelectProfessores(selectElement, valorSelecionado) {
+    let html = '<option value="">Selecione um coordenador...</option>';
+    
+    listaProfessoresGlobal.forEach(p => {
+        const selected = (valorSelecionado && p.id == valorSelecionado) ? 'selected' : '';
+        html += `<option value="${p.id}" ${selected}>${p.nome}</option>`;
+    });
+    
+    selectElement.innerHTML = html;
 }
 
 async function instSalvarCurso() {
@@ -296,7 +388,6 @@ async function instSalvarCurso() {
     const btnSalvar = document.querySelector('#modalCurso .btn-primary');
     const txtOriginal = btnSalvar.innerHTML;
     btnSalvar.disabled = true;
-    // O CSS deve garantir que o botão disabled continue verde
     btnSalvar.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
 
     try {
@@ -307,7 +398,7 @@ async function instSalvarCurso() {
         if(modal) modal.hide();
 
         mostrarToast(id ? "Curso atualizado com sucesso!" : "Curso criado com sucesso!");
-        await instFiltrarCursos(); 
+        await instCarregarDadosCursos(); // Recarrega a tabela
 
     } catch (error) {
         console.error("Erro no payload:", payload); 
@@ -318,7 +409,7 @@ async function instSalvarCurso() {
             msgErro = error.map(e => `${e.campo}: ${e.mensagem}`).join('<br>');
         }
         
-        mostrarToast(msgErro, "error");
+        mostrarToast(msgErro, "danger");
     } finally {
         btnSalvar.disabled = false;
         btnSalvar.innerHTML = txtOriginal;
@@ -359,11 +450,11 @@ async function instConfirmarExclusaoCurso() {
         await fetchAPI(`/cursos/${cursoIdParaExcluir}`, 'DELETE');
         
         mostrarToast("Curso removido com sucesso!");
-        await instFiltrarCursos();
+        await instCarregarDadosCursos();
 
     } catch (error) {
         console.error(error);
-        mostrarToast("Não foi possível excluir. Verifique se existem matérias vinculadas.", "error");
+        mostrarToast("Não foi possível excluir. Verifique se existem matérias vinculadas.", "danger");
     } finally {
         cursoIdParaExcluir = null;
     }

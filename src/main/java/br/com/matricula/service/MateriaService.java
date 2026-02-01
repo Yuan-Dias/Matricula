@@ -1,6 +1,8 @@
 package br.com.matricula.service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +13,7 @@ import br.com.matricula.dto.DadosListagemMateria;
 import br.com.matricula.model.ConfiguracaoAvaliacao;
 import br.com.matricula.model.Materia;
 import br.com.matricula.model.Matricula;
+import br.com.matricula.model.Nota;
 import br.com.matricula.model.StatusMatricula;
 import br.com.matricula.model.TipoUsuario;
 import br.com.matricula.repository.ConfiguracaoAvaliacaoRepository;
@@ -28,7 +31,11 @@ public class MateriaService {
     private final ConfiguracaoAvaliacaoRepository configuracaoAvaliacaoRepository;
     private final MatriculaRepository matriculaRepository;
 
-    public MateriaService(MateriaRepository repository, CursoRepository cursoRepository, UsuarioRepository usuarioRepository, ConfiguracaoAvaliacaoRepository configuracaoAvaliacaoRepository, MatriculaRepository matriculaRepository) {
+    public MateriaService(MateriaRepository repository, 
+                          CursoRepository cursoRepository, 
+                          UsuarioRepository usuarioRepository, 
+                          ConfiguracaoAvaliacaoRepository configuracaoAvaliacaoRepository, 
+                          MatriculaRepository matriculaRepository) {
         this.repository = repository;
         this.cursoRepository = cursoRepository;
         this.usuarioRepository = usuarioRepository;
@@ -45,7 +52,6 @@ public class MateriaService {
         var curso = cursoRepository.findById(dados.getIdCurso())
                 .orElseThrow(() -> new RuntimeException("Curso não encontrado."));
 
-        @SuppressWarnings("null")
         var professor = usuarioRepository.findById(dados.getIdProfessor())
                 .orElseThrow(() -> new RuntimeException("Professor não encontrado."));
 
@@ -130,7 +136,6 @@ public class MateriaService {
         var materia = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Matéria não encontrada."));
 
-        @SuppressWarnings("null")
         var professor = usuarioRepository.findById(dados.getIdProfessor())
                 .orElseThrow(() -> new RuntimeException("Professor não encontrado."));
 
@@ -178,6 +183,10 @@ public class MateriaService {
         }
     }
 
+    /**
+     * FINALIZAR SEMESTRE (ENCERRAR MATÉRIA)
+     * Calcula as médias finais e define APROVADO/REPROVADO
+     */
     @Transactional
     public void finalizarSemestre(Long idMateria, String loginProfessor) {
         @SuppressWarnings("null")
@@ -187,22 +196,82 @@ public class MateriaService {
         if (!materia.getProfessor().getLogin().equals(loginProfessor)) {
             throw new RuntimeException("Apenas o professor da matéria pode encerrá-la.");
         }
-
+        
+        List<ConfiguracaoAvaliacao> configsMateria = configuracaoAvaliacaoRepository.findByMateriaId(idMateria);
         List<Matricula> matriculas = matriculaRepository.findByMateriaId(idMateria);
 
         for (Matricula m : matriculas) {
-            if (!m.isAtiva()) continue;
+            // Calcula a média AGORA, baseada nas notas lançadas no banco
+            double mediaCalculada = calcularMediaPonderada(m.getNotasLancadas(), configsMateria);
+            
+            m.setNotaFinal(mediaCalculada); // Persiste a média calculada
 
-            double media = m.getMediaFinal();
-            m.setNotaFinal(media);
-
-            if (media >= 7.0) {
-                m.setStatus(StatusMatricula.APROVADO);
+            if (mediaCalculada >= 7.0) {
+                m.setStatus(StatusMatricula.APROVADO); 
             } else {
                 m.setStatus(StatusMatricula.REPROVADO);
             }
-
-            m.setAtiva(false); 
+            
+            m.setAtiva(false); // Encerra a matrícula e move para histórico
         }
+    }
+
+    /**
+     * Método auxiliar privado para cálculo de notas
+     */
+    private Double calcularMediaPonderada(List<Nota> notasAluno, List<ConfiguracaoAvaliacao> configuracoes) {
+        if (configuracoes == null || configuracoes.isEmpty()) {
+            return 0.0;
+        }
+
+        double somaPonderada = 0.0;
+        double somaPesos = 0.0;
+        Double valorRecuperacao = null;
+
+        // Mapa das notas existentes
+        Map<Long, Double> mapaNotas = (notasAluno == null) ? Map.of() : 
+            notasAluno.stream()
+                .filter(n -> n.getValor() != null)
+                .collect(Collectors.toMap(
+                    n -> n.getConfiguracao().getId(), 
+                    Nota::getValor,
+                    (a, b) -> a
+                ));
+
+        for (ConfiguracaoAvaliacao config : configuracoes) {
+            String nome = config.getDescricaoNota() != null ? config.getDescricaoNota().toUpperCase() : "";
+            boolean isRecuperacao = nome.contains("RECUPERA") || nome.contains("PROVA FINAL");
+            
+            Double notaLancada = mapaNotas.get(config.getId());
+            
+            // Peso padrão 1.0 se não definido
+            Double pesoObj = config.getPeso();
+            double peso = (pesoObj != null && pesoObj > 0) ? pesoObj : 1.0;
+
+            if (isRecuperacao) {
+                if (notaLancada != null) valorRecuperacao = notaLancada;
+            } else {
+                // CORREÇÃO: O peso é somado SEMPRE, exista nota ou não.
+                // Se notaLancada for null, assumimos 0.0 para o cálculo da média
+                double valorNota = (notaLancada != null) ? notaLancada : 0.0;
+                
+                somaPonderada += valorNota * peso;
+                somaPesos += peso;
+            }
+        }
+
+        if (somaPesos == 0) {
+            return valorRecuperacao != null ? valorRecuperacao : 0.0;
+        }
+
+        double media = somaPonderada / somaPesos;
+        media = Math.round(media * 10.0) / 10.0;
+
+        if (media < 7.0 && valorRecuperacao != null && valorRecuperacao > media) {
+            media = (media + valorRecuperacao) / 2.0;
+            media = Math.round(media * 10.0) / 10.0;
+        }
+
+        return media;
     }
 }
