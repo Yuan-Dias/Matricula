@@ -213,3 +213,25 @@ body {
     filter: invert(1) grayscale(100%) brightness(200%);
     opacity: 0.8;
 }
+
+/* --- ÍCONE DE MOSTRAR SENHA --- */
+.password-icon {
+    position: absolute;
+    top: 50%;
+    right: 15px; /* Distância da direita */
+    transform: translateY(-50%); /* Centraliza verticalmente exato */
+    cursor: pointer;
+    color: #94a3b8; /* Cor cinza suave (text-muted) */
+    z-index: 10; /* Garante que fique acima do input */
+    font-size: 1.1rem;
+    transition: color 0.2s ease;
+}
+
+.password-icon:hover {
+    color: var(--brand-accent); /* Fica verde ao passar o mouse */
+}
+
+/* Garante que o texto digitado não fique por baixo do ícone */
+.form-control.pe-5 {
+    padding-right: 2.5rem !important; 
+}

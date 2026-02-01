@@ -48,6 +48,7 @@
                     <div class="form-floating mb-4 text-start">
                         <input type="password" id="loginSenha" class="form-control" placeholder="Senha" required>
                         <label for="loginSenha">Senha</label>
+                        <i class="fas fa-eye password-icon" onclick="toggleSenha('loginSenha', this)"></i>
                     </div>
 
                     <button type="submit" class="btn btn-primary w-100 py-2 fw-bold mb-3 shadow-sm transition-btn">
@@ -84,6 +85,7 @@
                     <div class="form-floating mb-3 text-start">
                         <input type="password" id="paSenha" class="form-control" placeholder="Senha Mestra" required>
                         <label>Senha Mestra</label>
+                        <i class="fas fa-eye password-icon" onclick="toggleSenha('paSenha', this)"></i>
                     </div>
 
                     <button type="submit" class="btn btn-danger w-100 py-2 fw-bold mb-2 shadow-sm transition-btn">

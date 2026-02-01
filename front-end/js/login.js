@@ -188,3 +188,20 @@ async function realizarPrimeiroAcesso() {
         btn.disabled = false;
     }
 }
+
+// --- FUNÇÃO PARA MOSTRAR/OCULTAR SENHA ---
+function toggleSenha(inputId, iconElement) {
+    const input = document.getElementById(inputId);
+    
+    if (input.type === "password") {
+        input.type = "text";
+        // Troca o ícone para "olho cortado" (eye-slash)
+        iconElement.classList.remove("fa-eye");
+        iconElement.classList.add("fa-eye-slash");
+    } else {
+        input.type = "password";
+        // Volta o ícone para "olho normal"
+        iconElement.classList.remove("fa-eye-slash");
+        iconElement.classList.add("fa-eye");
+    }
+}
