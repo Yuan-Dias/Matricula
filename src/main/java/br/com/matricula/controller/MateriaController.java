@@ -77,6 +77,9 @@ public class MateriaController {
         return ResponseEntity.ok(lista);
     }
 
+    /**
+     * ATUALIZAÇÃO GERAL (Dados da Matéria + Avaliações Opcionais)
+     */
     @PutMapping("/{id}")
     @Transactional
     @PreAuthorize("hasAnyAuthority('INSTITUICAO', 'PROFESSOR')") 
@@ -90,7 +93,22 @@ public class MateriaController {
 
             return ResponseEntity.ok(materiaAtualizada);
         } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * ATUALIZAÇÃO ESPECÍFICA DE AVALIAÇÕES
+     */
+    @PutMapping("/{id}/avaliacoes")
+    @PreAuthorize("hasAnyAuthority('INSTITUICAO', 'PROFESSOR')")
+    public ResponseEntity<Object> atualizarAvaliacoes(@PathVariable Long id, 
+                                                      @RequestBody List<DadosConfiguracao> novasAvaliacoes) {
+        try {
+            service.atualizarConfiguracaoAvaliacoes(id, novasAvaliacoes);
+            return ResponseEntity.ok("Avaliações atualizadas com sucesso!");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
@@ -103,13 +121,5 @@ public class MateriaController {
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
-    }
-
-    @PutMapping("/{id}/avaliacoes")
-    @PreAuthorize("hasAuthority('INSTITUICAO')")
-    public ResponseEntity<Void> atualizarAvaliacoes(@PathVariable Long id, 
-                                                    @RequestBody List<DadosConfiguracao> novasAvaliacoes) {
-        service.atualizarConfiguracaoAvaliacoes(id, novasAvaliacoes);
-        return ResponseEntity.noContent().build();
     }
 }

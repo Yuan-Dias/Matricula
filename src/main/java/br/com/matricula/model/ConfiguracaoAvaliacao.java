@@ -39,6 +39,9 @@ public class ConfiguracaoAvaliacao {
     @OneToMany(mappedBy = "configuracao", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Nota> notas = new ArrayList<>();
 
+    @Column(nullable = false)
+    private Boolean ativo = true;
+
     // --- CONSTRUTORES ---
 
     public ConfiguracaoAvaliacao() {
@@ -96,5 +99,12 @@ public class ConfiguracaoAvaliacao {
 
     public void setNotas(List<Nota> notas) {
         this.notas = notas;
+    }
+    public Boolean getAtivo() { 
+        return ativo; 
+    }
+    
+    public void setAtivo(Boolean ativo) { 
+        this.ativo = ativo; 
     }
 }

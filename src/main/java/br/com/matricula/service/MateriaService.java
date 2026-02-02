@@ -1,5 +1,6 @@
 package br.com.matricula.service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -43,9 +44,7 @@ public class MateriaService {
         this.matriculaRepository = matriculaRepository;
     }
 
-    /**
-     * CADASTRAR MATÉRIA
-     */
+    // CADASTRAR MATÉRIA
     @Transactional
     public void cadastrar(DadosCadastroMateria dados) {
         @SuppressWarnings("null")
@@ -71,14 +70,13 @@ public class MateriaService {
         if (dados.getAvaliacoes() != null && !dados.getAvaliacoes().isEmpty()) {
             for (DadosConfiguracao config : dados.getAvaliacoes()) {
                 ConfiguracaoAvaliacao novaConfig = new ConfiguracaoAvaliacao(config, materia);
+                novaConfig.setAtivo(true); 
                 configuracaoAvaliacaoRepository.save(novaConfig);
             }
         }
     }
 
-    /**
-     * LISTAGEM GENÉRICA
-     */
+    // LISTAGEM GENÉRICA
     @Transactional(readOnly = true)
     public List<DadosListagemMateria> listarTodas() {
         return repository.findAll().stream()
@@ -86,9 +84,7 @@ public class MateriaService {
                 .toList();
     }
 
-    /**
-     * LISTAGEM ESPECÍFICA
-     */
+    // LISTAGEM ESPECÍFICA
     @Transactional(readOnly = true)
     public List<DadosListagemMateria> listarPorCurso(Long idCurso) {
         return repository.findByCursoId(idCurso).stream()
@@ -96,18 +92,14 @@ public class MateriaService {
                 .toList();
     }
 
-    /**
-     * LISTAR AVALIAÇÕES DE UMA MATÉRIA
-    */
+    // LISTAR AVALIAÇÕES DE UMA MATÉRIA
     public List<DadosConfiguracao> listarAvaliacoesPorMateria(Long idMateria) {
-        return configuracaoAvaliacaoRepository.findByMateriaId(idMateria).stream()
+        return configuracaoAvaliacaoRepository.findByMateriaIdAndAtivoTrue(idMateria).stream()
                 .map(DadosConfiguracao::new)
                 .toList();
     }
 
-    /**
-     * LISTAR POR PROFESSOR
-     */
+    // LISTAR POR PROFESSOR
     @Transactional(readOnly = true)
     public List<DadosListagemMateria> listarPorProfessor(Long idProfessor) {
         return repository.findByProfessorId(idProfessor).stream()
@@ -115,9 +107,7 @@ public class MateriaService {
                 .toList();
     }
 
-    /**
-     * DETALHAR MATÉRIA
-     */
+    // DETALHAR MATÉRIA
     @Transactional(readOnly = true)
     public DadosListagemMateria detalhar(Long id) {
         @SuppressWarnings("null")
@@ -127,9 +117,7 @@ public class MateriaService {
         return new DadosListagemMateria(materia);
     }
 
-    /**
-     * ATUALIZAR MATÉRIA
-     */
+    // ATUALIZAR MATÉRIA (Dados básicos)
     @Transactional
     public DadosListagemMateria atualizar(Long id, DadosCadastroMateria dados) {
         @SuppressWarnings("null")
@@ -151,9 +139,7 @@ public class MateriaService {
         return new DadosListagemMateria(materia);
     }
 
-    /**
-     * EXCLUIR MATÉRIA
-     */
+    // EXCLUIR MATÉRIA
     @SuppressWarnings("null")
     @Transactional
     public void excluir(Long id) {
@@ -163,30 +149,53 @@ public class MateriaService {
         repository.deleteById(id);
     }
 
+    // ATUALIZAR CONFIGURAÇÃO DE AVALIAÇÕES (COM SOFT DELETE)
     @SuppressWarnings("null")
     @Transactional
     public void atualizarConfiguracaoAvaliacoes(Long idMateria, List<DadosConfiguracao> novasConfigs) {
-        @SuppressWarnings("null")
         Materia materia = repository.findById(idMateria)
                 .orElseThrow(() -> new RuntimeException("Matéria não encontrada."));
 
-        List<ConfiguracaoAvaliacao> antigas = configuracaoAvaliacaoRepository.findByMateriaId(idMateria);
-        configuracaoAvaliacaoRepository.deleteAll(antigas);
+        List<ConfiguracaoAvaliacao> configsAtivasNoBanco = configuracaoAvaliacaoRepository.findByMateriaIdAndAtivoTrue(idMateria);
 
-        configuracaoAvaliacaoRepository.flush();
+        List<Long> idsParaManter = new ArrayList<>();
 
         if (novasConfigs != null && !novasConfigs.isEmpty()) {
             for (DadosConfiguracao dados : novasConfigs) {
-                ConfiguracaoAvaliacao novaConfig = new ConfiguracaoAvaliacao(dados, materia);
-                configuracaoAvaliacaoRepository.save(novaConfig);
+                
+                if (dados.getId() != null) {
+                    ConfiguracaoAvaliacao configExistente = configsAtivasNoBanco.stream()
+                        .filter(c -> c.getId().equals(dados.getId()))
+                        .findFirst()
+                        .orElse(null);
+
+                    if (configExistente != null) {
+                        configExistente.setDescricaoNota(dados.getDescricaoNota());
+                        configExistente.setPeso(dados.getPeso());
+                        configExistente.setAtivo(true);
+                        
+                        configuracaoAvaliacaoRepository.save(configExistente);
+                        idsParaManter.add(configExistente.getId());
+                    }
+                } else {
+                    ConfiguracaoAvaliacao novaConfig = new ConfiguracaoAvaliacao(dados, materia);
+                    novaConfig.setAtivo(true);
+                    
+                    ConfiguracaoAvaliacao salva = configuracaoAvaliacaoRepository.save(novaConfig);
+                    idsParaManter.add(salva.getId());
+                }
+            }
+        }
+
+        for (ConfiguracaoAvaliacao configBanco : configsAtivasNoBanco) {
+            if (!idsParaManter.contains(configBanco.getId())) {
+                configBanco.setAtivo(false);
+                configuracaoAvaliacaoRepository.save(configBanco);
             }
         }
     }
 
-    /**
-     * FINALIZAR SEMESTRE (ENCERRAR MATÉRIA)
-     * Calcula as médias finais e define APROVADO/REPROVADO
-     */
+    //FINALIZAR SEMESTRE (ENCERRAR MATÉRIA)
     @Transactional
     public void finalizarSemestre(Long idMateria, String loginProfessor) {
         @SuppressWarnings("null")
@@ -197,14 +206,14 @@ public class MateriaService {
             throw new RuntimeException("Apenas o professor da matéria pode encerrá-la.");
         }
         
-        List<ConfiguracaoAvaliacao> configsMateria = configuracaoAvaliacaoRepository.findByMateriaId(idMateria);
+        List<ConfiguracaoAvaliacao> configsMateria = configuracaoAvaliacaoRepository.findByMateriaIdAndAtivoTrue(idMateria);
+        
         List<Matricula> matriculas = matriculaRepository.findByMateriaId(idMateria);
 
         for (Matricula m : matriculas) {
-            // Calcula a média AGORA, baseada nas notas lançadas no banco
             double mediaCalculada = calcularMediaPonderada(m.getNotasLancadas(), configsMateria);
             
-            m.setNotaFinal(mediaCalculada); // Persiste a média calculada
+            m.setNotaFinal(mediaCalculada);
 
             if (mediaCalculada >= 7.0) {
                 m.setStatus(StatusMatricula.APROVADO); 
@@ -212,13 +221,11 @@ public class MateriaService {
                 m.setStatus(StatusMatricula.REPROVADO);
             }
             
-            m.setAtiva(false); // Encerra a matrícula e move para histórico
+            m.setAtiva(false);
         }
     }
 
-    /**
-     * Método auxiliar privado para cálculo de notas
-     */
+    // Método auxiliar privado para cálculo de notas
     private Double calcularMediaPonderada(List<Nota> notasAluno, List<ConfiguracaoAvaliacao> configuracoes) {
         if (configuracoes == null || configuracoes.isEmpty()) {
             return 0.0;
@@ -228,7 +235,6 @@ public class MateriaService {
         double somaPesos = 0.0;
         Double valorRecuperacao = null;
 
-        // Mapa das notas existentes
         Map<Long, Double> mapaNotas = (notasAluno == null) ? Map.of() : 
             notasAluno.stream()
                 .filter(n -> n.getValor() != null)
@@ -244,15 +250,12 @@ public class MateriaService {
             
             Double notaLancada = mapaNotas.get(config.getId());
             
-            // Peso padrão 1.0 se não definido
             Double pesoObj = config.getPeso();
             double peso = (pesoObj != null && pesoObj > 0) ? pesoObj : 1.0;
 
             if (isRecuperacao) {
                 if (notaLancada != null) valorRecuperacao = notaLancada;
             } else {
-                // CORREÇÃO: O peso é somado SEMPRE, exista nota ou não.
-                // Se notaLancada for null, assumimos 0.0 para o cálculo da média
                 double valorNota = (notaLancada != null) ? notaLancada : 0.0;
                 
                 somaPonderada += valorNota * peso;

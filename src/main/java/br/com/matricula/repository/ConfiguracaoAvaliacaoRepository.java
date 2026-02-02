@@ -8,4 +8,5 @@ import br.com.matricula.model.ConfiguracaoAvaliacao;
 
 public interface ConfiguracaoAvaliacaoRepository extends JpaRepository<ConfiguracaoAvaliacao, Long> {
     List<ConfiguracaoAvaliacao> findByMateriaId(Long materiaId);
+    List<ConfiguracaoAvaliacao> findByMateriaIdAndAtivoTrue(Long materiaId);
 }

@@ -1,5 +1,3 @@
-// ARQUIVO: js/materias.js
-
 async function instRenderMaterias() {
     atualizarMenuAtivo('Matérias');
     instGarantirModalMateria();
@@ -22,7 +20,6 @@ async function instRenderMaterias() {
             </div>
 
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-                
                 <div class="card-header bg-white border-bottom border-light p-3">
                     <div class="row g-3">
                         <div class="col-md-5">
@@ -32,7 +29,6 @@ async function instRenderMaterias() {
                                        placeholder="Buscar disciplina, professor..." oninput="instFiltrarMaterias()">
                             </div>
                         </div>
-                        
                         <div class="col-md-7 text-md-end">
                             <button class="btn btn-light btn-sm text-muted" onclick="instFiltrarMaterias()">
                                 <i class="fas fa-sync-alt me-1"></i> Atualizar
@@ -45,10 +41,10 @@ async function instRenderMaterias() {
                     <table class="table table-hover align-middle mb-0 custom-table">
                         <thead class="bg-light text-uppercase small fw-bold text-muted">
                             <tr>
-                                <th class="ps-4 py-3 cursor-pointer user-select-none" style="width: 30%; cursor: pointer;" onclick="ordenarERender('materias', 'nome')">
+                                <th class="ps-4 py-3 cursor-pointer user-select-none" style="width: 30%;" onclick="ordenarERender('materias', 'nome')">
                                     Disciplina <i class="fas fa-sort ms-1 small text-muted"></i>
                                 </th>
-                                <th class="py-3 cursor-pointer user-select-none" style="width: 20%; cursor: pointer;" onclick="ordenarERender('materias', 'nomeCurso')">
+                                <th class="py-3 cursor-pointer user-select-none" style="width: 20%;" onclick="ordenarERender('materias', 'nomeCurso')">
                                     Curso <i class="fas fa-sort ms-1 small text-muted"></i>
                                 </th>
                                 <th class="py-3" style="width: 30%;">Critérios de Avaliação</th>
@@ -67,8 +63,6 @@ async function instRenderMaterias() {
     instFiltrarMaterias();
 }
 
-// LÓGICA DE FILTRAGEM E CONTEÚDO
-
 async function instFiltrarMaterias() {
     const termo = document.getElementById('buscaInput')?.value || "";
     const container = document.getElementById('materiasTableBody');
@@ -79,12 +73,6 @@ async function instFiltrarMaterias() {
     try {
         let materias = await fetchAPI('/materias');
         
-        // --- ESPIÃO PARA DEBUGAR O ERRO 404 ---
-        console.group("DEBUG LISTAGEM MATÉRIAS");
-        materias.forEach(m => console.log(`Matéria: "${m.nome}" | ID no JSON: ${m.id} (Tipo: ${typeof m.id})`));
-        console.groupEnd();
-        // --------------------------------------
-
         if (typeof filtrarDados === 'function') {
             materias = filtrarDados(materias, termo, ['nome', 'nomeCurso', 'nomeProfessor']);
         }
@@ -102,7 +90,16 @@ async function instFiltrarMaterias() {
             const listaNotas = m.avaliacoes || m.notasConfig || [];
             const isEncerrada = m.encerrada || m.status === 'FINALIZADA';
             
-            const htmlNotas = typeof utilsGerarBarraPesos === 'function' ? utilsGerarBarraPesos(listaNotas) : `<small class="text-muted">${listaNotas.length} critérios</small>`;
+            const regulares = listaNotas.filter(n => !utilsIsRecuperacao(n.descricaoNota || n.nome));
+            const recuperacoes = listaNotas.filter(n => utilsIsRecuperacao(n.descricaoNota || n.nome));
+
+            const recuperacaoUnica = recuperacoes.length > 0 ? [recuperacoes[0]] : [];
+
+            const notasAtivas = [...regulares, ...recuperacaoUnica];
+
+            const htmlNotas = typeof utilsGerarBarraPesos === 'function' 
+                ? utilsGerarBarraPesos(notasAtivas) 
+                : `<small class="text-muted">${notasAtivas.length} critérios (Soma: ${notasAtivas.reduce((a,b)=>a+(b.peso||0),0)})</small>`;
 
             return `
                 <tr class="${isEncerrada ? 'bg-light opacity-75' : ''} fade-in">
@@ -123,28 +120,23 @@ async function instFiltrarMaterias() {
                     <td class="py-3">${htmlNotas}</td>
                     <td class="text-end pe-4 py-3">
                         <div class="btn-group shadow-sm">
-                            
-                            <button class="btn btn-sm btn-light border" 
-                                    data-bs-toggle="tooltip" title="Diário de Classe / Notas" 
+                            <button class="btn btn-sm btn-light border" data-bs-toggle="tooltip" title="Diário de Classe" 
                                     onclick="instLimparTooltips(); instVerAlunos(${m.id}, '${m.nome}')">
                                 <i class="fas fa-list-ol text-info"></i>
                             </button>
                             
-                            <button class="btn btn-sm btn-light border" 
-                                    data-bs-toggle="tooltip" title="Editar Configurações" 
+                            <button class="btn btn-sm btn-light border" data-bs-toggle="tooltip" title="Editar" 
                                     onclick="instLimparTooltips(); instPrepararEdicaoMateria(${m.id})" ${isEncerrada ? 'disabled' : ''}>
                                 <i class="fas fa-cog text-primary"></i>
                             </button>
 
-                            <button class="btn btn-sm btn-light border" 
-                                    data-bs-toggle="tooltip" title="${isEncerrada ? 'Matéria Já Encerrada' : 'Encerrar Semestre'}" 
+                            <button class="btn btn-sm btn-light border" data-bs-toggle="tooltip" title="${isEncerrada ? 'Já Encerrada' : 'Encerrar'}" 
                                     onclick="instLimparTooltips(); instFinalizarMateria(${m.id}, '${m.nome}')" ${isEncerrada ? 'disabled' : ''}>
                                 <i class="fas ${isEncerrada ? 'fa-check-double text-muted' : 'fa-lock text-warning'}"></i>
                             </button>
 
-                            <button class="btn btn-sm btn-light border" 
-                                    data-bs-toggle="tooltip" title="Excluir Disciplina" 
-                                    onclick="instLimparTooltips(); instDeletarMateria(${m.id})">
+                            <button class="btn btn-sm btn-light border" data-bs-toggle="tooltip" title="Excluir" 
+                                    onclick="instLimparTooltips(); instConfirmarExclusao(${m.id})"> 
                                 <i class="fas fa-trash text-danger"></i>
                             </button>
                         </div>
@@ -153,85 +145,38 @@ async function instFiltrarMaterias() {
         }).join('');
         
         const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        tooltipTriggerList.map(function (tooltipTriggerEl) {
-          return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
+        tooltipTriggerList.map(t => new bootstrap.Tooltip(t));
 
     } catch(e) { 
-        console.error("Erro ao filtrar matérias:", e);
-        container.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4">Erro de conexão ao carregar dados.</td></tr>'; 
+        console.error("Erro ao filtrar:", e);
+        container.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4">Erro de conexão.</td></tr>'; 
     }
 }
 
-// Adicione o parâmetro 'id' no final
-function instAdicionarLinhaNota(descricao = '', peso = '', id = null) {
-    const container = document.getElementById('containerNotas');
-    if (!container) return;
-
-    const div = document.createElement('div');
-    div.className = 'row g-2 mb-2 nota-row align-items-center';
-    
-    const valueId = id ? id : '';
-
-    div.innerHTML = `
-        <input type="hidden" class="input-id-nota" value="${valueId}">
-        
-        <div class="col-7">
-            <input type="text" class="form-control input-desc-nota" 
-                   placeholder="Ex: Prova 1" value="${descricao || ''}" required>
-        </div>
-        <div class="col-3">
-            <input type="number" step="0.1" min="0" max="10" class="form-control input-peso-nota" 
-                   placeholder="Peso" value="${peso !== '' ? peso : ''}" required oninput="instCalcularTotalPesos()">
-        </div>
-        <div class="col-2 text-end">
-            <button type="button" class="btn btn-outline-danger btn-sm" onclick="instRemoverLinhaNota(this)">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
-    `;
-    container.appendChild(div);
-    instCalcularTotalPesos();
+function instConfirmarExclusao(id) {
+    mostrarModalConfirmacao(
+        "Excluir Matéria?",
+        "Tem certeza? Todas as notas e históricos serão perdidos.",
+        () => instExecutarExclusao(id),
+        "danger"
+    );
 }
 
-function instRemoverLinhaNota(btn) {
-    if(confirm("Tem certeza que deseja remover esta avaliação?")) {
-        const row = btn.closest('.nota-row');
-        row.remove();
-        instCalcularTotalPesos();
-    }
-}
-
-function instRenderizarRecuperacaoFixa() {
-    const container = document.getElementById('containerRecuperacaoFixa');
-    if (!container) return;
-
-    // Removemos a exibição do texto "Peso: N/A" e mantemos limpo
-    container.innerHTML = `
-        <div class="d-flex align-items-center gap-2 p-2 bg-light rounded border border-light text-muted">
-            <div style="width: 24px;" class="text-center"><i class="fas fa-lock fa-xs"></i></div>
-            <div class="flex-grow-1 fw-bold small text-uppercase">Recuperação / Exame Final</div>
-            <div style="width: 100px;" class="text-center small"></div> <div style="width: 32px;"></div> </div>
-    `;
-}
-
-function instCalcularTotalPesos() {
-    const inputs = document.querySelectorAll('.input-peso-nota');
-    let total = 0;
-    inputs.forEach(inp => {
-        const val = parseFloat(inp.value);
-        if(!isNaN(val)) total += val;
-    });
-    
-    const display = document.getElementById('displayTotalPesos');
-    if(display) {
-        display.innerText = total.toFixed(1);
-        // Visualmente mostra erro se for diferente de 10
-        if(Math.abs(total - 10) < 0.1) {
-            display.className = "fw-bold text-success";
+async function instExecutarExclusao(id) {
+    if (typeof instLoading === 'function') instLoading(true);
+    try {
+        await fetchAPI(`/materias/${id}`, 'DELETE');
+        mostrarToast("Matéria removida.", "success");
+    } catch(e) {
+        if ((e.status === 404) || (e.message && e.message.includes('404'))) {
+            mostrarToast("Item já não existia.", "warning");
         } else {
-            display.className = "fw-bold text-danger";
+            mostrarToast("Erro ao deletar: " + (e.message || "Erro desconhecido"), "danger");
         }
+    } finally {
+        if (typeof instFiltrarMaterias === 'function') await instFiltrarMaterias(); 
+        if (typeof instLoading === 'function') instLoading(false);
+        instRenderMaterias();
     }
 }
 
@@ -239,31 +184,48 @@ async function instPrepararEdicaoMateria(id) {
     try {
         const materias = await fetchAPI('/materias');
         const materiaAlvo = materias.find(m => m.id === id);
-        if (!materiaAlvo) throw new Error("Matéria não encontrada na lista.");
+        if (!materiaAlvo) throw new Error("Matéria não encontrada.");
 
         let avaliacoes = [];
-        try {
-            avaliacoes = await fetchAPI(`/materias/${id}/avaliacoes`);
-        } catch (err) {
-            console.warn("Sem avaliações específicas ou erro.");
+        try { 
+            const respAvaliacoes = await fetchAPI(`/materias/${id}/avaliacoes`); 
+            
+            if (respAvaliacoes && Array.isArray(respAvaliacoes) && respAvaliacoes.length > 0) {
+                avaliacoes = respAvaliacoes;
+            } else {
+                avaliacoes = materiaAlvo.avaliacoes || materiaAlvo.notasConfig || [];
+            }
+        } catch(e){
+            console.warn("Falha ao buscar avaliações detalhadas, usando cache.", e);
+            avaliacoes = materiaAlvo.avaliacoes || materiaAlvo.notasConfig || [];
         }
+
+        const isRecuperacao = (desc) => {
+            const d = (desc || '').toUpperCase();
+            return d.includes('RECUPERA') || d.includes('PROVA FINAL');
+        };
+
+        const configRecuperacao = avaliacoes.find(av => isRecuperacao(av.descricaoNota || av.nome));
+        const configsRegulares = avaliacoes.filter(av => !isRecuperacao(av.descricaoNota || av.nome));
 
         const dadosCompletos = {
             ...materiaAlvo,
-            notasConfig: avaliacoes
-                // Filtra a recuperação automática para não duplicar na tela de edição
-                .filter(av => (av.descricaoNota || av.nome) !== 'Recuperação')
-                .map(av => ({
-                    id: av.id, // CORREÇÃO: O ID É ESSENCIAL AQUI
-                    descricao: av.descricaoNota || av.descricao || av.nome || '',
-                    peso: av.peso
-                }))
+            notasConfig: configsRegulares.map(av => ({
+                id: av.id,
+                descricao: av.descricaoNota || av.nome || '',
+                peso: av.peso
+            })),
+            recuperacaoConfig: configRecuperacao ? {
+                id: configRecuperacao.id,
+                descricao: configRecuperacao.descricaoNota || configRecuperacao.nome,
+                peso: configRecuperacao.peso
+            } : null
         };
 
         instAbrirModalMateria(dadosCompletos);
 
     } catch (e) {
-        mostrarToast("Erro ao carregar dados da matéria: " + e.message, "danger");
+        mostrarToast("Erro ao carregar edição: " + e.message, "danger");
     }
 }
 
@@ -277,17 +239,23 @@ async function instAbrirModalMateria(materia = null) {
     const containerNotas = document.getElementById('containerNotas');
     if(containerNotas) containerNotas.innerHTML = '';
 
-    const modalTitle = document.getElementById('modalMateriaLabel'); 
+    utilsConfigurarDragDrop(containerNotas, '.nota-item');
+
     const btnSalvar = document.querySelector('#modalMateria .btn-primary');
+    const selCurso = document.getElementById('materiaCursoSelect');
+    const selProf = document.getElementById('materiaProfSelect');
+
+    let listaCursos = [];
+    let listaProfessores = [];
 
     try {
         const [cursos, professores] = await Promise.all([
             fetchAPI('/cursos'),
             fetchAPI('/usuarios/tipo/PROFESSOR')
         ]);
-
-        const selCurso = document.getElementById('materiaCursoSelect');
-        const selProf = document.getElementById('materiaProfSelect');
+        
+        listaCursos = cursos;
+        listaProfessores = professores;
 
         selCurso.innerHTML = '<option value="">Selecione...</option>' + 
             cursos.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
@@ -296,8 +264,8 @@ async function instAbrirModalMateria(materia = null) {
             professores.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
             
     } catch (e) {
-        console.error("Erro ao carregar listas:", e);
-        mostrarToast("Erro ao carregar cursos/professores.", "warning");
+        mostrarToast("Erro ao carregar listas.", "warning");
+        console.error(e);
     }
 
     if (materia) {
@@ -308,24 +276,46 @@ async function instAbrirModalMateria(materia = null) {
         document.getElementById('materiaNome').value = materia.nome || '';
         document.getElementById('materiaDescricao').value = materia.descricao || '';
         
-        const cursoId = materia.curso ? materia.curso.id : (materia.idCurso || '');
-        const profId = materia.professor ? materia.professor.id : (materia.idProfessor || '');
+        let cursoId = materia.curso?.id || materia.idCurso;
+        let profId = materia.professor?.id || materia.idProfessor;
+
+        if (!cursoId && materia.nomeCurso) {
+            const encontrado = listaCursos.find(c => c.nome === materia.nomeCurso);
+            if (encontrado) cursoId = encontrado.id;
+        }
+
+        if (!profId && materia.nomeProfessor) {
+            const encontrado = listaProfessores.find(p => p.nome === materia.nomeProfessor);
+            if (encontrado) profId = encontrado.id;
+        }
+
+        if (selCurso) selCurso.value = cursoId ? String(cursoId) : "";
+        if (selProf) selProf.value = profId ? String(profId) : "";
         
-        document.getElementById('materiaCursoSelect').value = cursoId;
-        document.getElementById('materiaProfSelect').value = profId;
-
-        const avaliacoes = materia.avaliacoes || materia.notasConfig || [];
-        const notasRegulares = avaliacoes.filter(n => {
-            const desc = (n.descricaoNota || n.descricao || '').toString().toLowerCase();
-            return desc !== 'recuperação' && desc !== 'recuperacao';
-        });
-
-        if (notasRegulares.length > 0) {
-            notasRegulares.forEach(nota => {
-                instAdicionarLinhaNota(nota.descricaoNota || nota.descricao, nota.peso);
+        let notas = materia.notasConfig || [];
+        
+        if (notas.length === 0 && materia.avaliacoes && materia.avaliacoes.length > 0) {
+            const isRec = (n) => (n.descricaoNota || n.nome || '').toUpperCase().includes('RECUPERA');
+            notas = materia.avaliacoes
+                .filter(n => !isRec(n))
+                .map(n => ({
+                    id: n.id,
+                    descricao: n.descricaoNota || n.nome,
+                    peso: n.peso
+                }));
+        }
+        
+        if (notas.length > 0) {
+            notas.forEach(nota => {
+                instAdicionarLinhaNota(nota.descricao, nota.peso, nota.id);
             });
         } else {
             instAdicionarLinhaNota(); 
+        }
+
+        const recId = materia.recuperacaoConfig ? materia.recuperacaoConfig.id : null;
+        if(typeof instRenderizarRecuperacaoFixa === 'function') {
+            instRenderizarRecuperacaoFixa(recId);
         }
 
     } else {
@@ -333,10 +323,15 @@ async function instAbrirModalMateria(materia = null) {
         btnSalvar.textContent = 'Salvar';
         document.getElementById('materiaId').value = '';
         instAdicionarLinhaNota();
+        
+        if(typeof instRenderizarRecuperacaoFixa === 'function') {
+            instRenderizarRecuperacaoFixa(null);
+        }
     }
     
-    instRenderizarRecuperacaoFixa();
-    instCalcularTotalPesos();
+    if(typeof instCalcularTotalPesos === 'function') {
+        instCalcularTotalPesos();
+    }
 
     const modal = new bootstrap.Modal(document.getElementById('modalMateria'));
     modal.show();
@@ -344,7 +339,7 @@ async function instAbrirModalMateria(materia = null) {
 
 async function instSalvarMateria() {
     const form = document.getElementById('formMateria');
-
+    
     if (!form.checkValidity()) {
         form.classList.add('was-validated');
         mostrarToast("Preencha os campos obrigatórios.", "warning");
@@ -352,139 +347,98 @@ async function instSalvarMateria() {
     }
 
     const inputId = document.getElementById('materiaId')?.value;
-    const idExistente = inputId ? parseInt(inputId) : null;
+    const idExistente = (inputId && inputId !== "0" && inputId !== "null") ? parseInt(inputId) : null;
     
     const nome = document.getElementById('materiaNome').value;
     const descricao = document.getElementById('materiaDescricao').value;
-    
-    const cursoSelectVal = document.getElementById('materiaCursoSelect').value;
-    const profSelectVal = document.getElementById('materiaProfSelect').value;
+    const idCurso = document.getElementById('materiaCursoSelect').value ? parseInt(document.getElementById('materiaCursoSelect').value) : null;
+    const elProf = document.getElementById('materiaProfSelect');
+    const idProfessor = (elProf.value && elProf.value !== "0") ? parseInt(elProf.value) : null;
 
-    const idCurso = cursoSelectVal ? parseInt(cursoSelectVal) : null;
-    const idProfessor = profSelectVal ? parseInt(profSelectVal) : null;
-
-    if (!idCurso || isNaN(idCurso)) {
-        mostrarToast("Por favor, selecione um Curso válido.", "warning");
+    if (!idCurso) {
+        mostrarToast("Selecione um curso válido.", "warning");
         return;
     }
 
-    const notasRows = document.querySelectorAll('.nota-row');
     const listaAvaliacoes = [];
     let pesoTotal = 0;
     
-    notasRows.forEach(row => {
-        const idVal = row.querySelector('.input-id-nota').value;
+    document.querySelectorAll('.nota-row').forEach(row => {
+        const inputIdNota = row.querySelector('.input-id-nota');
         const desc = row.querySelector('.input-desc-nota').value.trim();
-        const pesoVal = row.querySelector('.input-peso-nota').value;
-        const peso = parseFloat(pesoVal);
+        const peso = parseFloat(row.querySelector('.input-peso-nota').value) || 0;
         
+        let idAvaliacao = null;
+        if (inputIdNota && inputIdNota.value && inputIdNota.value !== "null") {
+            idAvaliacao = parseInt(inputIdNota.value);
+        }
+
         if(desc) {
-            const pesoFinal = isNaN(peso) ? 0 : peso;
-            
             listaAvaliacoes.push({ 
-                id: idVal ? parseInt(idVal) : null, 
+                id: idAvaliacao,
+                nome: desc, 
                 descricaoNota: desc, 
-                peso: pesoFinal 
+                peso: peso 
             });
-            
-            pesoTotal += pesoFinal;
+            pesoTotal += peso;
         }
     });
 
-    listaAvaliacoes.push({ descricaoNota: 'Recuperação', peso: 0 });
+    const recIdInput = document.getElementById('recuperacaoId');
+    const recId = (recIdInput && recIdInput.value) ? parseInt(recIdInput.value) : null;
+
+    listaAvaliacoes.push({
+        id: recId,
+        nome: 'Recuperação',
+        descricaoNota: 'Recuperação',
+        peso: 0,
+        ativo: true
+    });
 
     if (pesoTotal > 10.0) {
-        mostrarToast(`A soma dos pesos (${pesoTotal.toFixed(1)}) não pode ser maior que 10.`, "danger");
+        mostrarToast(`A soma dos pesos (${pesoTotal}) excede 10. Ajuste antes de salvar.`, "danger");
         return; 
     }
-
-    const somaValida = Math.abs(pesoTotal - 10) < 0.1;
-    if (!somaValida && pesoTotal !== 0) {
-         if(!confirm(`Atenção: A soma dos pesos é ${pesoTotal.toFixed(1)}. O ideal é 10.0.\nDeseja salvar mesmo assim?`)) return;
+    if (Math.abs(pesoTotal - 10) > 0.1 && pesoTotal !== 0) {
+         if(!confirm(`A soma dos pesos está em ${pesoTotal} (o ideal é 10.0). Deseja salvar assim mesmo?`)) return;
     }
+
+    const btn = form.querySelector('button[type="submit"]');
+    const txtOriginal = btn.innerHTML; 
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
 
     try {
         const bodyMateria = {
-            nome: nome,
-            descricao: descricao,
-            idCurso: idCurso, 
-            idProfessor: idProfessor,
+            id: idExistente,
+            nome, 
+            descricao, 
+            idCurso, 
+            idProfessor,
             avaliacoes: listaAvaliacoes 
         };
 
-        if (idExistente) {
-            bodyMateria.id = idExistente; 
-        }
+        const url = idExistente ? `/materias/${idExistente}` : '/materias';
+        const method = idExistente ? 'PUT' : 'POST';
 
-        console.log("Enviando JSON:", JSON.stringify(bodyMateria));
-
-        const response = await fetchAPI(
-            idExistente ? `/materias/${idExistente}` : '/materias', 
-            idExistente ? 'PUT' : 'POST', 
-            bodyMateria
-        );
+        await fetchAPI(url, method, bodyMateria);
 
         const modalEl = document.getElementById('modalMateria');
         const modalInstance = bootstrap.Modal.getInstance(modalEl);
         if (modalInstance) modalInstance.hide();
         
-        if(typeof instRenderMaterias === 'function') instRenderMaterias();
+        if (typeof instRenderMaterias === 'function') instRenderMaterias();
         mostrarToast("Matéria salva com sucesso!", "success");
 
     } catch(e) {
-        console.error("Erro ao salvar:", e);
-        
-        let msgErro = "Erro desconhecido";
-        if (Array.isArray(e)) {
-            msgErro = e.map(err => {
-                const campo = err.campo || err.field; 
-                const msg = err.mensagem || err.message || err.erro || JSON.stringify(err);
-                return campo ? `<b>${campo}</b>: ${msg}` : msg;
-            }).join('<br>');
-        } 
-        else if (e.message) msgErro = e.message;
-        else if (typeof e === 'string') msgErro = e;
-
-        mostrarToast("Não foi possível salvar:<br>" + msgErro, "danger");
+        console.error(e);
+        mostrarToast("Erro ao salvar: " + (e.message || "Erro desconhecido"), "danger");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = txtOriginal;
     }
 }
 
-async function instDeletarMateria(id) {
-    console.log("--- TENTANDO DELETAR ID:", id, " (Tipo:", typeof id, ") ---");
-
-    if(confirm("Tem certeza absoluta?\n\nAo excluir esta matéria, todas as notas lançadas e histórico acadêmico vinculado a ela serão perdidos permanentemente.")) {
-        
-        // Bloqueia a tela (se tiver loading)
-        if (typeof instLoading === 'function') instLoading(true);
-
-        try {
-            // Tenta deletar
-            await fetchAPI(`/materias/${id}`, 'DELETE');
-            mostrarToast("Matéria removida com sucesso.", "success");
-            
-        } catch(e) {
-            // Se der 404, finge que deu certo pois o item já sumiu
-            const is404 = (e.status === 404) || (e.message && e.message.includes('404'));
-
-            if (is404) {
-                console.warn("Recebi 404. O item já não existe no banco. Apenas atualizando a tela.");
-                mostrarToast("A lista foi atualizada (o item já não existia).", "warning");
-            } else {
-                console.error(e);
-                mostrarToast("Erro ao deletar: " + (e.message || "Erro desconhecido"), "danger");
-            }
-        } finally {
-            // AQUI ESTAVA O ERRO: Chamando a função com o nome correto agora
-            if (typeof instFiltrarMaterias === 'function') {
-                await instFiltrarMaterias(); // <--- NOME CORRIGIDO
-            }
-            
-            if (typeof instLoading === 'function') instLoading(false);
-        }
-    }
-}
-
-// Validar se podemos fechar a matéria
 async function instFinalizarMateria(idMateria, nomeMateria) {
     try {
         if (typeof instLoading === 'function') instLoading(true);
@@ -494,7 +448,6 @@ async function instFinalizarMateria(idMateria, nomeMateria) {
             fetchAPI('/matriculas')
         ]);
 
-        // Filtrar apenas alunos desta matéria e ativos
         const alunosDaTurma = matriculas.filter(mat => 
             mat.idMateria == idMateria && mat.situacao !== 'CANCELADO' && mat.situacao !== 'TRANCADO'
         );
@@ -503,10 +456,9 @@ async function instFinalizarMateria(idMateria, nomeMateria) {
             return mostrarToast("Não há alunos matriculados para finalizar esta matéria.", "warning");
         }
 
-        // Identificar Configurações
         const isRec = (nome) => {
             const n = (nome || "").toUpperCase();
-            return n.includes("RECUPERA") || n.includes("PROVA FINAL") || n.includes("EXAME");
+            return n.includes("RECUPERA") || n.includes("PROVA FINAL") || n.includes("EXAME") || n.includes("SUBSTITUTIVA");
         };
 
         const configRecuperacao = avaliacoes.find(c => isRec(c.descricaoNota || c.nome));
@@ -514,74 +466,79 @@ async function instFinalizarMateria(idMateria, nomeMateria) {
 
         const pendencias = [];
 
-        // Verifica cada aluno
         alunosDaTurma.forEach(aluno => {
             const notas = aluno.notas || [];
+            const nomeAluno = aluno.aluno?.nome || aluno.nomeAluno || 'Desconhecido';
             
-            // 1. Verificar se todas as notas REGULARES foram lançadas
             const notasRegularesLancadas = configsRegulares.every(conf => {
                 const n = notas.find(nt => nt.idConfiguracao === conf.id);
-                return n && n.valor !== null && n.valor !== undefined && n.valor !== "";
+                return n && n.valor !== null && n.valor !== undefined && String(n.valor).trim() !== "";
             });
 
             if (!notasRegularesLancadas) {
-                pendencias.push(`Aluno(a) ${aluno.aluno?.nome || 'Desconhecido'} possui notas regulares pendentes.`);
+                pendencias.push(`- ${nomeAluno}: Possui notas regulares (provas/trabalhos) pendentes.`);
                 return;
             }
 
-            // 2. Calcular média parcial para saber se exige recuperação
-            // (Reaproveita a lógica do diario.js ou calcula simples aqui para validação)
             let soma = 0;
-            let pesos = 0;
+            let totalPesos = 0;
             
             configsRegulares.forEach(conf => {
                 const nObj = notas.find(nt => nt.idConfiguracao === conf.id);
                 let valor = parseFloat(String(nObj.valor).replace(',', '.'));
-                let peso = parseFloat(conf.peso) || 1;
+                let peso = parseFloat(conf.peso) || 0;
+                
                 soma += valor * peso;
-                pesos += peso;
+                totalPesos += peso;
             });
 
-            const mediaParcial = pesos > 0 ? (soma / pesos) : 0;
+            const mediaCalculada = totalPesos > 0 ? (soma / totalPesos) : 0;
+            const mediaParcial = parseFloat(mediaCalculada.toFixed(2));
 
-            // 3. Se média < 7 e tem configuração de REC, a nota de REC é obrigatória
-            if (mediaParcial < 7.0 && configRecuperacao) {
-                const notaRec = notas.find(nt => nt.idConfiguracao === configRecuperacao.id);
-                const temRec = notaRec && notaRec.valor !== null && notaRec.valor !== undefined && notaRec.valor !== "";
+            if (mediaParcial < 7.0) {
                 
-                if (!temRec) {
-                    pendencias.push(`Aluno(a) ${aluno.aluno?.nome} está com média ${(mediaParcial).toFixed(1)} e precisa da nota de Recuperação.`);
+                if (!configRecuperacao) {
+                    pendencias.push(`- ${nomeAluno}: Média ${mediaParcial} (Reprovado), mas não há avaliação de Recuperação configurada na matéria.`);
+                } else {
+                    const notaRec = notas.find(nt => nt.idConfiguracao === configRecuperacao.id);
+                    const temNotaRec = notaRec && notaRec.valor !== null && notaRec.valor !== undefined && String(notaRec.valor).trim() !== "";
+                    
+                    if (!temNotaRec) {
+                        pendencias.push(`- ${nomeAluno}: Média parcial ${mediaParcial}. Necessário lançar a nota de Recuperação.`);
+                    }
                 }
             }
         });
 
         if (pendencias.length > 0) {
-            // Mostra os 3 primeiros erros para não poluir a tela
-            const msg = pendencias.slice(0, 3).join('\n') + (pendencias.length > 3 ? `\n... e mais ${pendencias.length - 3}.` : "");
-            alert("Não é possível finalizar a matéria:\n\n" + msg);
+            const qtd = pendencias.length;
+            const msgList = pendencias.slice(0, 5).join('\n'); // Mostra os 5 primeiros
+            const msgFinal = pendencias.length > 5 ? `${msgList}\n... e mais ${qtd - 5} pendências.` : msgList;
+            
+            alert(`NÃO É POSSÍVEL FINALIZAR A MATÉRIA.\nVerifique as pendências abaixo:\n\n${msgFinal}`);
             return;
         }
 
-        if (!confirm(`CONFIRMAÇÃO DE ENCERRAMENTO\n\nMatéria: ${nomeMateria}\n\n- O sistema calculará a Situação Final (Aprovado/Reprovado) de todos os alunos.\n- A matéria ficará como FINALIZADA.\n- Notas não poderão ser alteradas depois.\n\nDeseja continuar?`)) return;
+        if (!confirm(`CONFIRMAÇÃO DE ENCERRAMENTO\n\nMatéria: ${nomeMateria}\n\n- O sistema calculará a Situação Final de todos os alunos.\n- Alunos com média >= 7.0 serão Aprovados.\n- Alunos em recuperação terão a nota final calculada.\n- A matéria será travada.\n\nDeseja realmente finalizar?`)) return;
 
         await fetchAPI(`/matriculas/encerrar/${idMateria}`, 'PUT', {});
         
         mostrarToast("Matéria encerrada e médias calculadas com sucesso!", "success");
-        instRenderMaterias(); // Volta para a lista principal
+        
+        if (typeof instRenderMaterias === 'function') instRenderMaterias();
 
     } catch (e) {
         console.error(e);
-        mostrarToast("Erro ao finalizar matéria: " + e.message, "danger");
+        mostrarToast("Erro ao finalizar matéria: " + (e.message || "Erro desconhecido"), "danger");
     } finally {
         if (typeof instLoading === 'function') instLoading(false);
     }
 }
 
 async function instVerAlunos(idMateria, nomeMateria) {
-    instGarantirModalNota(); // Garante que o HTML do modal existe
+    instGarantirModalNota();
 
     const appContent = document.getElementById('appContent');
-    // Limpa a tela imediatamente
     appContent.innerHTML = `
         <div class="text-center py-5 fade-in">
             <div class="spinner-border text-primary"></div>
@@ -597,17 +554,20 @@ async function instVerAlunos(idMateria, nomeMateria) {
         
         const isFinalizada = materia.status === 'FINALIZADA' || materia.encerrada;
         
-        // Filtrar e Ordenar Alunos
         const alunosDaTurma = matriculas
             .filter(mat => mat.idMateria == idMateria && mat.situacao !== 'CANCELADO')
             .sort((a, b) => a.nomeAluno.localeCompare(b.nomeAluno));
 
-        // Separar configurações (usa utilsIsRecuperacao do utils.js)
-        const configs = avaliacoes || [];
-        const configsRegulares = configs.filter(c => !utilsIsRecuperacao(c.descricaoNota || c.nome));
-        const temRecuperacao = configs.some(c => utilsIsRecuperacao(c.descricaoNota || c.nome));
-        
-        // --- Cabeçalho da Tabela ---
+        const listaBruta = avaliacoes || [];
+
+        const regulares = listaBruta.filter(c => !utilsIsRecuperacao(c.descricaoNota || c.nome));
+        const recuperacoes = listaBruta.filter(c => utilsIsRecuperacao(c.descricaoNota || c.nome));
+
+        const configs = [...regulares, ...recuperacoes];
+
+        const configsRegulares = regulares; 
+        const temRecuperacao = recuperacoes.length > 0;
+
         let tableHeader = `
             <tr class="small text-muted bg-light border-bottom">
                 <th class="ps-3 text-uppercase align-middle py-3">Aluno</th>
@@ -623,7 +583,6 @@ async function instVerAlunos(idMateria, nomeMateria) {
                 <th class="text-center align-middle">Situação</th>
             </tr>`;
 
-        // --- Corpo da Tabela ---
         let tableBody = alunosDaTurma.length === 0 
             ? '<tr><td colspan="100%" class="text-center py-5 text-muted">Nenhum aluno matriculado nesta matéria.</td></tr>'
             : alunosDaTurma.map(a => {
@@ -632,13 +591,11 @@ async function instVerAlunos(idMateria, nomeMateria) {
                     a.notas.forEach(n => { mapaNotas[n.idConfiguracao] = n; });
                 }
                 
-                // 1. Calcular Média
                 let mediaDisplay = 0;
                 
                 if (isFinalizada && a.mediaFinal != null) {
                     mediaDisplay = parseFloat(a.mediaFinal);
                 } else {
-                    // Calculo Local em Tempo Real
                     let somaPonderada = 0;
                     let somaPesos = 0;
                     
@@ -655,8 +612,6 @@ async function instVerAlunos(idMateria, nomeMateria) {
                     mediaDisplay = somaPesos > 0 ? (somaPonderada / somaPesos) : 0;
                 }
 
-                // 2. Determinar Status Visual (Função movida para utils.js)
-                // Espera-se que instCalcularStatusVisual retorne o HTML/Badge
                 const resultadoStatus = utilsObterStatusAcademico(
                     mediaDisplay,
                     a.situacao,
@@ -664,10 +619,8 @@ async function instVerAlunos(idMateria, nomeMateria) {
                     temRecuperacao
                 );
                 
-                // Transforma o objeto retornado pelo utils em HTML para a tabela da instituição
                 const statusObj = `<span class="badge ${resultadoStatus.classBadge}" style="font-size: 0.8rem">${resultadoStatus.texto}</span>`;
 
-                // 3. Renderizar Colunas de Notas
                 const colunasNotas = configs.map(av => {
                     const notaObj = mapaNotas[av.id];
                     const valor = (notaObj && notaObj.valor !== undefined && notaObj.valor !== null) ? Number(notaObj.valor) : null;
@@ -677,9 +630,8 @@ async function instVerAlunos(idMateria, nomeMateria) {
                     
                     if (valor !== null) {
                         displayValor = valor.toFixed(1);
-                        // Usa função global de cor se disponível, ou lógica simples
                         corTexto = (typeof getNotaColor === 'function') 
-                            ? getNotaColor(valor).replace('text-', 'text-') // apenas garantindo classe
+                            ? getNotaColor(valor).replace('text-', 'text-') 
                             : (valor < 6.0 ? 'text-danger fw-bold' : 'text-dark fw-bold');
                     }
 
@@ -718,7 +670,6 @@ async function instVerAlunos(idMateria, nomeMateria) {
                     </tr>`;
             }).join('');
 
-        // --- Renderização Final ---
         appContent.innerHTML = `
             <style>
                 .hover-trigger:hover .hover-show { opacity: 1 !important; }
@@ -767,8 +718,7 @@ function instGarantirModalMateria() {
 
     if (modalExistente && !containerNotas) {
         modalExistente.remove();
-    }
-    else if (modalExistente) {
+    } else if (modalExistente) {
         return;
     }
 
@@ -825,11 +775,10 @@ function instGarantirModalMateria() {
                                 <small class="text-muted" style="font-size: 0.75rem">Configure os pesos.</small>
                                 <small style="font-size: 0.75rem">Soma: <span id="displayTotalPesos" class="fw-bold">0.0</span>/10</small>
                             </div>
-                            <div id="containerNotas">
-                            </div>
+                            <div id="containerNotas"></div>
                         </div>
 
-                        <div id="containerRecuperacaoFixa"></div>
+                        <div id="containerRecuperacao"></div>
 
                         <div class="text-end pt-2 border-top mt-2">
                             <button type="button" class="btn btn-sm btn-light me-1 border" data-bs-dismiss="modal">Cancelar</button>
@@ -844,6 +793,7 @@ function instGarantirModalMateria() {
     </div>`;
 
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+    instRenderizarRecuperacaoFixa();
 }
 
 function instGarantirModalNota() {
@@ -906,56 +856,100 @@ function instAbrirModalNota(idMatricula, idConfig, nomeAluno, nomeAvaliacao, val
     setTimeout(() => inputValor.focus(), 500);
 }
 
-async function instSalvarNota() {
-    const idMatricula = document.getElementById('notaIdMatricula').value;
-    const idConfiguracao = document.getElementById('notaIdConfig').value;
-    const inputValor = document.getElementById('notaValorInput');
-    const valor = parseFloat(inputValor.value);
+function instAdicionarLinhaNota(descricao = '', peso = '', id = null) {
+    const container = document.getElementById('containerNotas');
+    
+    const div = document.createElement('div');
+    div.className = 'nota-row nota-item row g-2 align-items-center mb-2 bg-white p-2 border rounded shadow-sm';
+    
+    div.setAttribute('draggable', 'true');
+    div.addEventListener('dragstart', () => div.classList.add('dragging'));
+    div.addEventListener('dragend', () => div.classList.remove('dragging'));
 
-    // Validação
-    if (isNaN(valor) || valor < 0 || valor > 10) {
-        inputValor.classList.add('is-invalid');
-        mostrarToast("A nota deve ser um número entre 0 e 10.", "warning");
-        return;
+    div.innerHTML = `
+        <div class="col-auto cursor-grab">
+            <i class="fas fa-grip-vertical text-muted drag-handle" style="cursor: grab;"></i>
+        </div>
+        <div class="col">
+            <input type="text" class="form-control form-control-sm input-desc-nota" 
+                   name="descricaoNota[]" 
+                   placeholder="Nome da Avaliação (Ex: Prova 1)" 
+                   value="${descricao}" required>
+        </div>
+        <div class="col-3">
+            <input type="number" class="form-control form-control-sm text-center input-peso-nota" 
+                   name="pesoNota[]" 
+                   placeholder="Peso" 
+                   value="${peso}" 
+                   min="0" max="10" step="0.1" 
+                   oninput="instCalcularTotalPesos()" 
+                   onchange="instCalcularTotalPesos()">
+        </div>
+        <div class="col-auto">
+            <input type="hidden" class="input-id-nota" name="idNota[]" value="${id || ''}">
+            <button type="button" class="btn btn-sm btn-outline-danger border-0" 
+                    onclick="this.closest('.nota-row').remove(); instCalcularTotalPesos()">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `;
+
+    container.appendChild(div);
+    
+    instCalcularTotalPesos();
+}
+
+function instRemoverLinhaNota(btn) {
+    if(confirm("Tem certeza que deseja remover esta avaliação?")) {
+        const row = btn.closest('.nota-row');
+        row.remove();
+        instCalcularTotalPesos();
     }
+}
 
-    const btnSubmit = document.querySelector('#formNota button[type="submit"]');
-    const txtOriginal = btnSubmit.innerHTML;
-    btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
+function instRenderizarRecuperacaoFixa(id = null) {
+    const container = document.getElementById('containerRecuperacao');
+    if (!container) return;
 
-    try {
-        const payload = {
-            idMatricula: parseInt(idMatricula),
-            idConfiguracao: parseInt(idConfiguracao),
-            nota: valor
-        };
+    container.innerHTML = `
+        <div class="row g-2 align-items-center p-2 border border-warning bg-warning-subtle rounded mt-3">
+            <div class="col-auto">
+                <i class="fas fa-exclamation-circle text-warning-emphasis"></i>
+            </div>
+            <div class="col">
+                <span class="fw-bold text-warning-emphasis small">Recuperação / Prova Final</span>
+                <div class="text-muted" style="font-size: 0.75rem">Nota substitutiva automática</div>
+            </div>
+            <div class="col-3 text-end">
+                <span class="badge bg-warning text-dark border border-warning-subtle">Auto</span>
+            </div>
+            <input type="hidden" id="recuperacaoId" value="${id || ''}">
+        </div>
+    `;
+}
 
-        await fetchAPI('/matriculas/notas', 'PUT', payload);
-        
-        const modalEl = document.getElementById('modalNota');
-        const modalInstance = bootstrap.Modal.getInstance(modalEl);
-        if (modalInstance) modalInstance.hide();
-        
-        mostrarToast("Nota lançada com sucesso!", "success");
-        
-        const tituloMateria = document.querySelector('#appContent h4')?.innerText || 'Matéria';
-        
-        const matriculaObj = await fetchAPI(`/matriculas/${idMatricula}`);
-
-        if(matriculaObj && matriculaObj.idMateria) {
-            instVerAlunos(matriculaObj.idMateria, tituloMateria);
-        } else {
-             // Fallback caso não consiga pegar o ID da matéria: recarrega a página ou tenta pegar do DOM
-             // instVerAlunos(variavelGlobalIdMateria, tituloMateria);
+function instCalcularTotalPesos() {
+    let total = 0;
+    const inputs = document.querySelectorAll('.input-peso-nota');
+    
+    inputs.forEach(input => {
+        const val = parseFloat(input.value);
+        if (!isNaN(val)) {
+            total += val;
         }
+    });
 
-    } catch (e) {
-        console.error(e);
-        mostrarToast("Erro ao salvar nota: " + (e.message || "Erro desconhecido"), "danger");
-    } finally {
-        btnSubmit.disabled = false;
-        btnSubmit.innerHTML = txtOriginal;
+    const display = document.getElementById('displayTotalPesos');
+    if (display) {
+        display.textContent = total.toFixed(1);
+        
+        if (total > 10) {
+            display.className = "fw-bold text-danger";
+        } else if (total === 10) {
+            display.className = "fw-bold text-success";
+        } else {
+            display.className = "fw-bold text-warning";
+        }
     }
 }
 

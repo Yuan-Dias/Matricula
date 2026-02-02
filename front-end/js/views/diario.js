@@ -20,7 +20,12 @@ async function profVerAlunos(idMateria, nomeMateria) {
         
         alunosDaTurma.sort((a, b) => a.nomeAluno.localeCompare(b.nomeAluno));
 
-        const configs = avaliacoes || []; 
+        let rawConfigs = avaliacoes || [];
+        
+        const regulares = rawConfigs.filter(c => !utilsIsRecuperacao(c.descricaoNota || c.nome));
+        const recuperacoes = rawConfigs.filter(c => utilsIsRecuperacao(c.descricaoNota || c.nome));
+        
+        const configs = [...regulares, ...recuperacoes];
         
         const btnFinalizarHtml = isFinalizada 
             ? `<span class="badge bg-success border fs-6 px-3 py-2"><i class="fas fa-check me-2"></i>Matéria Finalizada</span>` 
@@ -52,10 +57,8 @@ async function profVerAlunos(idMateria, nomeMateria) {
                     a.notas.forEach(n => { mapaNotas[n.idConfiguracao] = n; });
                 }
                 
-                // CALCULO DE MÉDIA VIA UTILS
                 const media = utilsCalcularMedia(a.notas, configs);
 
-                // LÓGICA DE PREENCHIMENTO (Para determinar status)
                 const configsRegulares = configs.filter(c => !utilsIsRecuperacao(c.descricaoNota || c.nome));
                 const configsRecuperacao = configs.filter(c => utilsIsRecuperacao(c.descricaoNota || c.nome));
 
@@ -71,7 +74,6 @@ async function profVerAlunos(idMateria, nomeMateria) {
                     return n && n.valor !== null && n.valor !== undefined && n.valor !== "";
                 });
 
-                // CALCULO DE STATUS VIA UTILS
                 const status = utilsObterStatusAcademico(media, isFinalizada, todasRegularesLancadas, temNotaRecuperacao);
                 const statusBadge = `<span class="badge ${status.classBadge}" style="font-size: 0.7rem">${status.texto}</span>`;
 
@@ -201,26 +203,21 @@ function profGarantirModalNota() {
 function profAbrirModalNota(idMatricula, idConfig, nomeAluno, nomeAvaliacao, valorAtual, idMateria, nomeMateria) {
     profGarantirModalNota();
     
-    // Preenche os hidden fields
     document.getElementById('profNotaIdMatricula').value = idMatricula;
     document.getElementById('profNotaIdConfig').value = idConfig;
     document.getElementById('profNotaIdMateria').value = idMateria;
     document.getElementById('profNotaNomeMateria').value = nomeMateria;
     
-    // Preenche textos visuais
     document.getElementById('profNotaNomeAluno').textContent = nomeAluno;
     document.getElementById('profNotaNomeAvaliacao').textContent = nomeAvaliacao;
     
-    // Configura o input de valor
     const inputValor = document.getElementById('profNotaValorInput');
     inputValor.value = valorAtual;
     inputValor.classList.remove('is-invalid');
 
-    // Abre o modal
     const modal = new bootstrap.Modal(document.getElementById('modalNotaProf'));
     modal.show();
     
-    // Foca no campo automaticamente após abrir
     setTimeout(() => inputValor.focus(), 500);
 }
 
@@ -588,18 +585,37 @@ async function profFinalizarMateria(idMateria, nomeMateria) {
 
 async function profConfigurarAvaliacoes(idMateria, nomeMateria) {
     let configsAtuais = [];
-    let configsOriginais = []; // Para saber o que realmente foi deletado do banco
+    let configsOriginais = [];
+
+    const ordenarConfigs = () => {
+        configsAtuais.sort((a, b) => {
+            const nomeA = (a.descricaoNota || a.nome || "").toUpperCase();
+            const nomeB = (b.descricaoNota || b.nome || "").toUpperCase();
+            
+            const isRecA = nomeA.includes("RECUPERA") || nomeA.includes("EXAME") || nomeA.includes("PROVA FINAL");
+            const isRecB = nomeB.includes("RECUPERA") || nomeB.includes("EXAME") || nomeB.includes("PROVA FINAL");
+
+            if (isRecA && !isRecB) return 1; 
+            if (!isRecA && isRecB) return -1;
+            return 0;
+        });
+    };
 
     try {
         if (typeof instLoading === 'function') instLoading(true);
 
         const dados = await fetchAPI(`/materias/${idMateria}/avaliacoes`);
         configsAtuais = dados || [];
+        
+        ordenarConfigs();
+        
         configsOriginais = JSON.parse(JSON.stringify(configsAtuais));
 
         const renderListaConfig = () => {
             const container = document.getElementById('listaConfigAvaliacoes');
             if (!container) return;
+
+            ordenarConfigs();
 
             if (configsAtuais.length === 0) {
                 container.innerHTML = '<div class="text-center text-muted p-3">Nenhuma avaliação cadastrada.</div>';
@@ -633,7 +649,7 @@ async function profConfigurarAvaliacoes(idMateria, nomeMateria) {
                 }
 
                 return `
-                <div class="d-flex align-items-center justify-content-between p-2 mb-2 border rounded bg-white shadow-sm">
+                <div class="d-flex align-items-center justify-content-between p-2 mb-2 border rounded bg-white shadow-sm fade-in">
                     <div class="d-flex align-items-center gap-2">
                         <div class="fw-bold text-uppercase ${ehRec ? 'text-warning-emphasis' : 'text-dark'}">
                             ${nome}
@@ -760,7 +776,7 @@ async function profConfigurarAvaliacoes(idMateria, nomeMateria) {
                                 const payloadLimpeza = {
                                     idMatricula: matricula.id,
                                     idConfiguracao: nota.idConfiguracao,
-                                    nota: null // Tentativa de anular
+                                    nota: null
                                 };
                                 promessasLimpeza.push(fetchAPI('/matriculas/notas', 'PUT', payloadLimpeza));
                             }
@@ -799,6 +815,7 @@ async function profConfigurarAvaliacoes(idMateria, nomeMateria) {
                 }
             } finally {
                 if (typeof instLoading === 'function') instLoading(false);
+                profRenderTurmas();
             }
         };
 

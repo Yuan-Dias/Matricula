@@ -52,13 +52,11 @@ function mostrarToast(mensagem, tipo = 'success') {
     if (toastEl && window.bootstrap) {
         const bsToast = new bootstrap.Toast(toastEl, { delay: 4000 });
         bsToast.show();
-        // Remove do DOM após desaparecer para não poluir
         toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
     }
 }
 
 /**
- * Exibe um spinner de carregamento.
  * @param {boolean} ativo - Se deve mostrar ou esconder.
  * @param {string} elementId - ID do elemento onde o loader aparecerá (default: appContent).
  */
@@ -67,7 +65,6 @@ function instLoading(ativo = true, elementId = 'appContent') {
     if (!target) return;
 
     if(ativo) {
-        // Salva o conteúdo original se necessário, ou apenas sobrescreve
         target.dataset.originalContent = target.innerHTML;
         target.innerHTML = `
             <div class="d-flex flex-column justify-content-center align-items-center fade-in" style="min-height: 300px; height: 100%;">
@@ -75,7 +72,6 @@ function instLoading(ativo = true, elementId = 'appContent') {
                 <p class="mt-3 text-muted fw-bold animate-pulse">Processando...</p>
             </div>`;
     } 
-    // Nota: Para restaurar, a lógica da página geralmente chama a função de renderização novamente.
 }
 
 function mostrarModalMsg(titulo, mensagem, tipo = 'success') {
@@ -108,6 +104,54 @@ function mostrarModalMsg(titulo, mensagem, tipo = 'success') {
     if(window.bootstrap) {
         new bootstrap.Modal(document.getElementById(modalId)).show();
     }
+}
+
+/**
+ * @param {string} titulo 
+ * @param {string} mensagem 
+ * @param {Function} callbackConfirmacao 
+ * @param {string} cor
+ */
+function mostrarModalConfirmacao(titulo, mensagem, callbackConfirmacao, cor = 'danger') {
+    const modalId = 'modalConfirmacaoGeral';
+    
+    const icon = cor === 'danger' ? 'fa-exclamation-triangle' : 'fa-question-circle';
+    const btnClass = `btn-${cor}`;
+
+    const modalHtml = `
+        <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header bg-${cor} text-white border-0">
+                        <h5 class="modal-title fw-bold"><i class="fas ${icon} me-2"></i> ${titulo}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4 text-center">
+                        <h4 class="mb-3 text-${cor}">Atenção!</h4>
+                        <p class="fs-5 mb-0 text-secondary">${mensagem}</p>
+                    </div>
+                    <div class="modal-footer border-0 justify-content-center bg-light">
+                        <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" id="btnConfirmarAcao" class="btn ${btnClass} px-4">Sim, Confirmar</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+    const anterior = document.getElementById(modalId);
+    if (anterior) anterior.remove();
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    const modalEl = document.getElementById(modalId);
+    const bsModal = new bootstrap.Modal(modalEl);
+
+    document.getElementById('btnConfirmarAcao').onclick = function() {
+        bsModal.hide();
+        if (callbackConfirmacao) callbackConfirmacao();
+    };
+
+    bsModal.show();
 }
 
 function cardStat(titulo, valor, icone, cor) {
@@ -198,9 +242,7 @@ function formatarNomeProprio(nome) {
         .join(' ');
 }
 
-// ============================================================================
-// 4. MANIPULAÇÃO DE DADOS (Filtragem, Ordenação)
-// ============================================================================
+//MANIPULAÇÃO DE DADOS (Filtragem, Ordenação)
 
 function filtrarDados(dados, termo, campos) {
     if (!termo) return dados;
@@ -264,15 +306,12 @@ function filtrarMinhasMatriculas(matriculas, user) {
     if (!user || !user.id) return [];
 
     return matriculas.filter(m => {
-        // Verifica todas as possibilidades de estrutura do objeto
         const idAluMatricula = m.idAluno || (m.aluno?.id) || (m.usuario?.id);
         return parseInt(idAluMatricula) === parseInt(user.id);
     });
 }
 
-// ============================================================================
 // 5. DOM INTERACTION (Menu, Drag & Drop)
-// ============================================================================
 
 /**
  * Atualiza o estado visual do menu lateral.
@@ -344,9 +383,7 @@ function utilsGetDragAfterElement(container, y, itemSelector) {
     }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
-// ============================================================================
 // 6. LÓGICA ACADÊMICA & DOMÍNIO
-// ============================================================================
 
 function getStatusBadge(tipo) {
     const map = {
@@ -357,8 +394,6 @@ function getStatusBadge(tipo) {
     };
     return map[tipo] || `<span class="badge bg-secondary rounded-pill">${tipo}</span>`;
 }
-
-// --- utils.js ---
 
 function gerarFeedbackStatusAluno(mediaAtual, notaRecuperacao, existeConfigRecuperacao, todasRegularesLancadas, mediaFinal) {
     const corte = 7.0; 

@@ -1,10 +1,10 @@
-// Renderização da tabela principal
+
+// RENDERIZAÇÃO E LISTAGEM
 async function instRenderUsuarios() {
     atualizarMenuAtivo('Usuários');
-    const target = document.getElementById('appContent'); // Certifique-se que o ID está correto no seu HTML
+    const target = document.getElementById('appContent');
     if (!target) return;
     
-    // Renderiza a estrutura
     target.innerHTML = `
         <div class="fade-in">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
@@ -68,16 +68,77 @@ async function instRenderUsuarios() {
                 </div>
             </div>
         </div>
+
+        <div class="modal fade" id="modalUsuario" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header bg-white border-bottom-0 pb-0">
+                        <h5 class="modal-title fw-bold text-primary" id="modalUsuarioTitle">Novo Usuário</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <form id="formUsuario" class="needs-validation" novalidate>
+                            <input type="hidden" id="usuarioId">
+                            
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-muted">Nome Completo</label>
+                                <input type="text" class="form-control" id="usuarioNome" required>
+                            </div>
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold text-muted">Perfil</label>
+                                    <select class="form-select" id="usuarioTipo" required onchange="instToggleCpf()">
+                                        <option value="" selected disabled>Selecione...</option>
+                                        <option value="ALUNO">Aluno</option>
+                                        <option value="PROFESSOR">Professor</option>
+                                        <option value="INSTITUICAO">Administrador</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 d-none" id="divCpf">
+                                    <label class="form-label small fw-bold text-muted">CPF</label>
+                                    <input type="text" class="form-control" id="usuarioCpf" placeholder="000.000.000-00" oninput="instMascaraCPF(this)">
+                                    <div class="invalid-feedback">CPF inválido ou já cadastrado.</div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-muted">Login / Email</label>
+                                <input type="text" class="form-control" id="usuarioLogin" required>
+                                <div class="invalid-feedback">Login já existe.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-muted">Senha</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="usuarioSenha">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="instToggleSenha()">
+                                        <i class="fas fa-eye" id="iconSenha"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text text-muted small mt-1">
+                                    <span id="helpSenha">Mínimo 6 caracteres.</span>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer border-top-0 pt-0 px-4 pb-4">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary px-4" onclick="instSalvarUsuario()">
+                            <i class="fas fa-save me-2"></i> Salvar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
     
-    // Chama o filtro para carregar os dados iniciais
     instFiltrarUsuarios();
 }
 
-// Lógica de busca e preenchimento da tabela
 async function instFiltrarUsuarios() {
     const termo = document.getElementById('buscaInput')?.value || "";
-    const tipoFiltro = document.getElementById('filtroTipoInput')?.value || ""; // Pega o valor do Select
+    const tipoFiltro = document.getElementById('filtroTipoInput')?.value || ""; 
     
     const container = document.getElementById('usuariosTableBody');
     if(!container) return;
@@ -104,7 +165,6 @@ async function instFiltrarUsuarios() {
 
         if(typeof ordenacaoAtual !== 'undefined' && ordenacaoAtual.coluna) {
             usuariosFiltrados = ordenarDados(usuariosFiltrados, ordenacaoAtual.coluna, ordenacaoAtual.ascendente);
-            atualizarIconesHeaders();
         }
 
         if(usuariosFiltrados.length === 0) {
@@ -115,8 +175,10 @@ async function instFiltrarUsuarios() {
         container.innerHTML = usuariosFiltrados.map(u => {
             let avatarColor = u.tipo === 'INSTITUICAO' ? 'bg-dark' : (u.tipo === 'ALUNO' ? 'bg-info' : 'bg-primary');
             const isRootUser = u.id === 1;
-            const deleteButtonClass = isRootUser ? 'btn-action-disabled' : 'btn-action-delete';
-            const deleteButtonAttr = isRootUser ? 'disabled style="cursor: not-allowed; opacity: 0.5;"' : `onclick="instDeletarUsuario(${u.id})"`;
+            
+            const deleteButtonClass = isRootUser ? 'text-muted opacity-50 cursor-not-allowed' : 'text-danger hover-scale';
+            const deleteButtonAction = isRootUser ? '' : `onclick="instDeletarUsuario(${u.id})"`;
+            const deleteTitle = isRootUser ? 'Usuário Root não pode ser excluído' : 'Excluir';
 
             let cpfFormatado = '';
             if (u.cpf) {
@@ -128,7 +190,9 @@ async function instFiltrarUsuarios() {
             <tr>
                 <td class="ps-4 py-3">
                     <div class="d-flex align-items-center">
-                        <div class="avatar-circle ${avatarColor} text-white me-3 flex-shrink-0">${getIniciais(u.nome)}</div>
+                        <div class="avatar-circle ${avatarColor} text-white me-3 flex-shrink-0 d-flex justify-content-center align-items-center rounded-circle" style="width:40px; height:40px;">
+                            ${getIniciais(u.nome)}
+                        </div>
                         <div>
                             <div class="fw-bold text-dark">${u.nome}</div>
                             <div class="small text-muted d-flex align-items-center">
@@ -139,11 +203,17 @@ async function instFiltrarUsuarios() {
                     </div>
                 </td>
                 <td>${getStatusBadge(u.tipo)}</td>
-                <td><span class="badge bg-soft-green rounded-pill px-3">Ativo</span></td>
+                <td><span class="badge bg-success-subtle text-success rounded-pill px-3 border border-success-subtle">Ativo</span></td>
                 <td class="text-end pe-4">
-                    <div class="d-flex justify-content-end gap-2">
-                        <button class="btn-action-icon btn-action-edit" title="Editar" onclick="instAbrirModalUsuario(${JSON.stringify(u).replace(/"/g, '&quot;')})"><i class="fas fa-pen"></i></button>
-                        <button class="btn-action-icon ${deleteButtonClass}" title="Excluir" ${deleteButtonAttr}><i class="fas fa-trash"></i></button>
+                    <div class="d-flex justify-content-end gap-3">
+                        <button class="btn btn-sm btn-link text-decoration-none text-muted hover-scale p-0" title="Editar" 
+                                onclick="instAbrirModalUsuario(${JSON.stringify(u).replace(/"/g, '&quot;')})">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button class="btn btn-sm btn-link text-decoration-none p-0 ${deleteButtonClass}" 
+                                title="${deleteTitle}" ${deleteButtonAction}>
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
                 </td>
             </tr>
@@ -151,11 +221,12 @@ async function instFiltrarUsuarios() {
 
     } catch(e) { 
         console.error(e);
-        container.innerHTML = '<tr><td colspan="4" class="text-center text-danger p-4">Erro ao carregar dados.</td></tr>'; 
+        container.innerHTML = '<tr><td colspan="4" class="text-center text-danger p-4">Erro ao carregar dados da API.</td></tr>'; 
     }
 }
 
-// Funções de Formulário (Modal)
+// FUNÇÕES DE FORMULÁRIO (MODAL)
+
 function instAbrirModalUsuario(dados = null) {
     const form = document.getElementById('formUsuario');
     if(form) {
@@ -169,6 +240,7 @@ function instAbrirModalUsuario(dados = null) {
     const senhaInput = document.getElementById('usuarioSenha');
     const iconSenha = document.getElementById('iconSenha'); 
     const tipoSelect = document.getElementById('usuarioTipo');
+    const helpSenha = document.getElementById('helpSenha');
 
     tipoSelect.onchange = instToggleCpf;
 
@@ -186,8 +258,10 @@ function instAbrirModalUsuario(dados = null) {
         tipoSelect.value = dados.tipo;
         
         senhaInput.required = false;
-        senhaInput.placeholder = "Deixe em branco para manter a atual";
-        tipoSelect.disabled = true; 
+        senhaInput.placeholder = "Preencha apenas para alterar";
+        if(helpSenha) helpSenha.innerText = "Deixe em branco para manter a senha atual.";
+        
+        tipoSelect.disabled = true;
 
         if (dados.tipo === 'ALUNO') {
             document.getElementById('divCpf').classList.remove('d-none');
@@ -205,6 +279,7 @@ function instAbrirModalUsuario(dados = null) {
         tipoSelect.disabled = false;
         senhaInput.required = true;
         senhaInput.placeholder = "";
+        if(helpSenha) helpSenha.innerText = "Mínimo 6 caracteres.";
         instToggleCpf();
     }
 
@@ -240,7 +315,7 @@ async function instSalvarUsuario() {
         if (loginDuplicado) {
             loginInput.classList.add('is-invalid');
             const feedback = loginInput.parentElement.querySelector('.invalid-feedback') || loginInput.nextElementSibling;
-            if(feedback) feedback.innerText = "Este e-mail/login já está em uso.";
+            if(feedback) feedback.innerText = "Este login já está em uso.";
             return;
         }
 
@@ -267,6 +342,8 @@ async function instSalvarUsuario() {
         if (senhaInput.value) body.senha = senhaInput.value;
 
         let url;
+        let method = id ? 'PUT' : 'POST';
+
         if (tipo === 'ALUNO') {
             url = id ? `/alunos/${id}` : '/alunos';
             body.cpf = cpfInput.value.replace(/\D/g, ''); 
@@ -274,7 +351,7 @@ async function instSalvarUsuario() {
             url = id ? `/usuarios/${id}` : '/usuarios';
         }
 
-        await fetchAPI(url, id ? 'PUT' : 'POST', body);
+        await fetchAPI(url, method, body);
         
         const modalEl = document.getElementById('modalUsuario');
         const modal = bootstrap.Modal.getInstance(modalEl);
@@ -285,19 +362,11 @@ async function instSalvarUsuario() {
 
     } catch(e) {
         console.error(e);
-        mostrarToast("Erro ao salvar usuário.", 'error');
+        mostrarToast("Erro ao salvar usuário. Tente novamente.", 'danger');
     }
 }
 
-function getStatusBadgePro(tipo) {
-    const map = {
-        'ADMIN': { class: 'bg-soft-dark text-dark', icon: 'fa-user-shield', label: 'Administrador' },
-        'PROFESSOR': { class: 'bg-soft-blue', icon: 'fa-chalkboard-teacher', label: 'Professor' },
-        'ALUNO': { class: 'bg-soft-orange', icon: 'fa-user-graduate', label: 'Aluno' }
-    };
-    const config = map[tipo] || { class: 'bg-light text-secondary', icon: 'fa-user', label: tipo };
-    return `<span class="badge ${config.class} px-3 py-2 rounded-2 fw-normal border-0"><i class="fas ${config.icon} me-1 opacity-75"></i> ${config.label}</span>`;
-}
+// AUXILIARES E ACTIONS
 
 function instToggleCpf() {
     const tipo = document.getElementById('usuarioTipo').value;
@@ -324,11 +393,9 @@ function instToggleSenha() {
     }
 }
 
-
-
 async function instDeletarUsuario(id) {
     if (id === 1) {
-        mostrarToast("Operação negada: O usuário principal do sistema não pode ser excluído.", "error");
+        mostrarToast("Operação negada: O usuário principal (Root) não pode ser excluído.", "danger");
         return;
     }
 
@@ -337,57 +404,36 @@ async function instDeletarUsuario(id) {
         const usuarioAlvo = todosUsuarios.find(u => u.id === id);
 
         if (!usuarioAlvo) {
-            mostrarToast("Usuário não encontrado.", "error");
+            mostrarToast("Usuário não encontrado.", "danger");
             return;
         }
 
-        if (usuarioAlvo.tipo === 'ADMIN') {
-            const totalAdmins = todosUsuarios.filter(u => u.tipo === 'ADMIN').length;
+        if (usuarioAlvo.tipo === 'ADMIN' || usuarioAlvo.tipo === 'INSTITUICAO') {
+            const totalAdmins = todosUsuarios.filter(u => u.tipo === 'ADMIN' || u.tipo === 'INSTITUICAO').length;
             if (totalAdmins <= 1) {
                 mostrarToast("Ação bloqueada: O sistema deve ter pelo menos um Administrador.", "warning");
                 return;
             }
         }
 
-        // --- PREPARAÇÃO DO MODAL ---
-        
-        usuarioIdParaExcluir = id;
-
-        const msgElement = document.getElementById('textoConfirmacaoExclusao');
-        if (msgElement) {
-            msgElement.innerHTML = `Tem certeza que deseja remover o usuário <strong>${usuarioAlvo.nome}</strong>?`;
-        }
-
-        const modalEl = document.getElementById('modalConfirmarExclusao');
-        const modal = new bootstrap.Modal(modalEl);
-        modal.show();
-
-    } catch(e) {
-        console.error(e);
-        mostrarToast("Erro ao verificar dados do usuário.", 'error');
-    }
-}
-
-async function instConfirmarExclusao() {
-    if (!usuarioIdParaExcluir) return;
-
-    try {
-        const modalEl = document.getElementById('modalConfirmarExclusao');
-        const modalInstance = bootstrap.Modal.getInstance(modalEl);
-        if (modalInstance) {
-            modalInstance.hide();
-        }
-
-        await fetchAPI(`/usuarios/${usuarioIdParaExcluir}`, 'DELETE');
-        
-        await instRenderUsuarios();
-        
-        mostrarToast("Usuário removido com sucesso!");
+        mostrarModalConfirmacao(
+            'Excluir Usuário', 
+            `Tem certeza que deseja remover o usuário <strong>${usuarioAlvo.nome}</strong>? <br><small class="text-danger">Esta ação não pode ser desfeita.</small>`,
+            async () => {
+                try {
+                    await fetchAPI(`/usuarios/${id}`, 'DELETE');
+                    await instRenderUsuarios();
+                    mostrarToast("Usuário removido com sucesso!");
+                } catch(e) {
+                    console.error(e);
+                    mostrarToast("Não foi possível excluir. Verifique se o usuário possui vínculos (aulas, notas, etc).", 'danger');
+                }
+            },
+            'danger'
+        );
 
     } catch(e) {
         console.error(e);
-        mostrarToast("Não foi possível excluir. Verifique se o usuário possui vínculos (aulas, notas, etc).", 'error');
-    } finally {
-        usuarioIdParaExcluir = null;
+        mostrarToast("Erro ao verificar dados do usuário.", 'danger');
     }
 }

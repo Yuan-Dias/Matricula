@@ -1,30 +1,11 @@
-/**
- * js/views/cursos.js
- * Gerenciamento de Cursos (Admin) e Visualização de Progresso/Catálogo (Aluno)
- */
-
-// ============================================================================
-// 1. VARIÁVEIS GLOBAIS
-// ============================================================================
-// ATENÇÃO: Usamos 'var' para evitar "Uncaught SyntaxError: redeclaration" 
-// ao navegar pelo menu repetidas vezes.
 var listaCursosGlobal = [];
 var listaProfessoresGlobal = [];
-var cursoIdParaExcluir = null;
 
-// ============================================================================
-// 2. LÓGICA DO ADMINISTRADOR (Gestão de Cursos)
-// ============================================================================
-
-/**
- * Renderiza a tela principal de gestão de cursos
- */
 async function instRenderCursos() {
     atualizarMenuAtivo('Cursos');
     const target = document.getElementById('appContent');
     if (!target) return;
 
-    // Renderiza a estrutura fixa (Cabeçalho e Filtros)
     target.innerHTML = `
         <div class="fade-in">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
@@ -126,37 +107,16 @@ async function instRenderCursos() {
                 </div>
             </div>
         </div>
-
-        <div class="modal fade" id="modalConfirmarExclusao" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered modal-sm">
-                <div class="modal-content border-0 shadow">
-                    <div class="modal-body text-center p-4">
-                        <div class="mb-3 text-danger"><i class="fas fa-exclamation-triangle fa-3x"></i></div>
-                        <h5 class="fw-bold">Excluir Curso?</h5>
-                        <p class="text-muted small" id="textoConfirmacaoExclusao"></p>
-                        <div class="d-flex gap-2 justify-content-center mt-4">
-                            <button type="button" class="btn btn-light btn-sm px-3" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="button" class="btn btn-danger btn-sm px-3">Sim, Excluir</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     `;
 
-    // Carrega os dados da API
     await instCarregarDadosCursos();
 }
 
-/**
- * Busca dados da API e preenche a tabela
- */
 async function instCarregarDadosCursos() {
     const container = document.getElementById('cursosTableBody');
     if(container) container.innerHTML = '<tr><td colspan="4" class="text-center p-5 text-muted"><i class="fas fa-circle-notch fa-spin me-2"></i> Atualizando...</td></tr>';
 
     try {
-        // 1. Busca Cursos, Usuários e todas as matrículas para contagem real
         const [cursos, usuarios, todasMatriculas] = await Promise.all([
             fetchAPI('/cursos'),
             fetchAPI('/usuarios'),
@@ -165,13 +125,10 @@ async function instCarregarDadosCursos() {
 
         listaProfessoresGlobal = usuarios.filter(u => u.tipo === 'PROFESSOR');
 
-        // 2. Processa os dados para enriquecer o objeto curso
         listaCursosGlobal = cursos.map(c => {
-            // Resolver Professor
             let nomeProf = c.nomeProfessor;
             let idProf = c.idProfessor;
 
-            // Tenta casar ID e Nome
             if (!idProf && nomeProf) {
                 const professorEncontrado = listaProfessoresGlobal.find(p => p.nome === nomeProf);
                 if (professorEncontrado) idProf = professorEncontrado.id;
@@ -181,9 +138,7 @@ async function instCarregarDadosCursos() {
                 if (prof) nomeProf = prof.nome;
             }
 
-            // Resolver Contagem de Vagas (Filtrando matriculas deste curso)
             const matriculasDoCurso = todasMatriculas ? todasMatriculas.filter(m => m.idCurso === c.id || (m.curso && m.curso.id === c.id)) : [];
-            // Remove duplicados de aluno para contagem de vagas
             const alunosUnicos = new Set(matriculasDoCurso.map(m => m.idAluno || (m.aluno ? m.aluno.id : null)));
             
             return { 
@@ -194,7 +149,6 @@ async function instCarregarDadosCursos() {
             };
         });
 
-        // Ordenação Inicial (Alfabética)
         listaCursosGlobal.sort((a, b) => a.nome.localeCompare(b.nome));
 
         instRenderizarTabela(listaCursosGlobal);
@@ -205,9 +159,6 @@ async function instCarregarDadosCursos() {
     }
 }
 
-/**
- * Filtro local (input de busca)
- */
 function instFiltrarCursosLocal() {
     const termo = document.getElementById('buscaCursoInput')?.value.toLowerCase() || "";
     
@@ -219,9 +170,6 @@ function instFiltrarCursosLocal() {
     instRenderizarTabela(cursosFiltrados);
 }
 
-/**
- * Gera o HTML das linhas da tabela
- */
 function instRenderizarTabela(cursos) {
     const container = document.getElementById('cursosTableBody');
     if (!container) return;
@@ -234,17 +182,14 @@ function instRenderizarTabela(cursos) {
     container.innerHTML = cursos.map(c => {
         const avatarColor = 'bg-primary bg-opacity-10 text-primary';
         
-        // Cálculo da barra de progresso
         const capacidade = c.capacidade || 1; 
         const ocupadas = c.vagasOcupadas || 0;
         const porcentagem = Math.min(100, Math.round((ocupadas / capacidade) * 100));
         
-        // Cor da barra
         let progressClass = 'bg-success';
         if(porcentagem > 70) progressClass = 'bg-warning';
         if(porcentagem >= 95) progressClass = 'bg-danger';
 
-        // HTML do Coordenador
         let coordDisplay = `<span class="text-muted small fst-italic">Não atribuído</span>`;
         if (c.professorNome) {
             coordDisplay = `
@@ -304,10 +249,6 @@ function instRenderizarTabela(cursos) {
     `}).join('');
 }
 
-// ============================================================================
-// 3. FUNÇÕES DE MODAL E CRUD (ADMIN)
-// ============================================================================
-
 async function instAbrirModalCurso(idCurso = null) {
     const form = document.getElementById('formCurso');
     if (form) {
@@ -325,7 +266,6 @@ async function instAbrirModalCurso(idCurso = null) {
         dados = listaCursosGlobal.find(c => c.id === idCurso);
     }
 
-    // Popula o Modal
     if (dados) {
         title.innerText = "Editar Curso";
         idInput.value = dados.id;
@@ -338,7 +278,6 @@ async function instAbrirModalCurso(idCurso = null) {
         idInput.value = '';
     }
 
-    // Carrega Select de Professores
     if (listaProfessoresGlobal.length === 0) {
         try {
             const usuarios = await fetchAPI('/usuarios');
@@ -416,47 +355,26 @@ async function instSalvarCurso() {
     }
 }
 
-// --- Exclusão ---
+// FUNÇÕES DE EXCLUSÃO
 
 function instPreparaExclusaoCurso(id, nomeCurso) {
-    cursoIdParaExcluir = id;
-    
-    const msgElement = document.getElementById('textoConfirmacaoExclusao');
-    if (msgElement) {
-        msgElement.innerHTML = `
-            Tem certeza que deseja remover o curso <strong>${nomeCurso}</strong>?<br>
-            <small class="text-danger mt-2 d-block">Isso pode afetar alunos e matérias vinculadas.</small>
-        `;
-    }
-
-    const btnSim = document.querySelector('#modalConfirmarExclusao .btn-danger');
-    if(btnSim) {
-        btnSim.onclick = instConfirmarExclusaoCurso;
-    }
-
-    const modalEl = document.getElementById('modalConfirmarExclusao');
-    const modal = new bootstrap.Modal(modalEl);
-    modal.show();
+    mostrarModalConfirmacao(
+        "Excluir Curso?", 
+        `Tem certeza que deseja remover o curso <strong>${nomeCurso}</strong>?<br>
+        <small class="text-danger">Isso pode afetar alunos e matérias vinculadas.</small>`,
+        () => instExecutarExclusaoCurso(id),
+        "danger"
+    );
 }
 
-async function instConfirmarExclusaoCurso() {
-    if (!cursoIdParaExcluir) return;
-
+async function instExecutarExclusaoCurso(id) {
     try {
-        const modalEl = document.getElementById('modalConfirmarExclusao');
-        const modalInstance = bootstrap.Modal.getInstance(modalEl);
-        if (modalInstance) modalInstance.hide();
-
-        await fetchAPI(`/cursos/${cursoIdParaExcluir}`, 'DELETE');
-        
+        await fetchAPI(`/cursos/${id}`, 'DELETE');
         mostrarToast("Curso removido com sucesso!");
         await instCarregarDadosCursos();
-
     } catch (error) {
         console.error(error);
         mostrarToast("Não foi possível excluir. Verifique se existem matérias vinculadas.", "danger");
-    } finally {
-        cursoIdParaExcluir = null;
     }
 }
 
