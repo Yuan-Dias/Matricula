@@ -34,6 +34,9 @@ public class Materia {
     @OneToMany(mappedBy = "materia", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ConfiguracaoAvaliacao> configuracoes = new ArrayList<>();
 
+    @OneToMany(mappedBy = "materia", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Matricula> matriculas = new ArrayList<>();
+
     private boolean encerrada = false;
 
     public Materia() {}
@@ -60,4 +63,6 @@ public class Materia {
     public void setConfiguracoes(List<ConfiguracaoAvaliacao> configuracoes) { this.configuracoes = configuracoes; }
     public boolean isEncerrada() { return encerrada; }
     public void setEncerrada(boolean encerrada) { this.encerrada = encerrada; }
+    public List<Matricula> getMatriculas() {return matriculas;}
+    public void setMatriculas(List<Matricula> matriculas) {this.matriculas = matriculas;}
 }

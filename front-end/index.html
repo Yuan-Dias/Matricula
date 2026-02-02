@@ -12,6 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-bootstrap-4/bootstrap-4.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <link rel="stylesheet" href="css/dashboard.css">
@@ -369,6 +370,7 @@
     <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;"></div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <script src="js/api.js"></script>
     <script src="js/utils.js"></script>
@@ -377,7 +379,6 @@
     <script src="js/views/perfil.js"></script>
 
     <script>
-        // Carregador dinâmico de scripts
         function loadScript(src) {
             return new Promise((resolve, reject) => {
                 const s = document.createElement('script');
@@ -385,7 +386,7 @@
                 s.onload = resolve;
                 s.onerror = () => {
                     console.warn(`Aviso: Script opcional não encontrado: ${src}`);
-                    resolve(); // Continua mesmo com erro
+                    resolve();
                 };
                 document.body.appendChild(s);
             });
@@ -395,22 +396,18 @@
             try {
                 const tipo = user.tipo;
                 
-                // --- INSTITUIÇÃO ---
                 if (tipo === 'INSTITUICAO') {
-                    // Views Administrativas
                     await loadScript('js/views/dashboard-inst.js');
                     await loadScript('js/views/usuarios.js');
                     await loadScript('js/views/cursos.js');
                     await loadScript('js/views/materias.js');
-                    await loadScript('js/views/matriculas.js'); // Novo: Gerenciar Matrículas
-                    await loadScript('js/views/instituicao.js'); // Controlador principal
+                    await loadScript('js/views/matriculas.js');
+                    await loadScript('js/views/instituicao.js');
                     
                     if (typeof carregarInstituicao === 'function') carregarInstituicao();
                 } 
                 
-                // --- PROFESSOR ---
                 else if (tipo === 'PROFESSOR') {
-                    // Views Docentes
                     await loadScript('js/views/dashboard-prof.js');
                     await loadScript('js/views/turmas.js');
                     await loadScript('js/views/notas.js');
@@ -436,7 +433,6 @@
                     if (typeof carregarAluno === 'function') carregarAluno();                   
                 }
 
-                // Finaliza o carregamento visual e exibe a tela
                 const wrapper = document.getElementById("wrapper");
                 if (wrapper) wrapper.style.setProperty('display', 'flex', 'important');
                 
@@ -447,14 +443,12 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. Verifica se o api.js carregou corretamente
             if (typeof getUser !== 'function') {
                 console.error("FATAL: api.js não carregou.");
                 alert("Erro de sistema: API não carregada.");
                 return;
             }
 
-            // 2. Verifica autenticação
             const user = getUser();
             if (!user) {
                 console.log("Usuário não logado. Redirecionando para login...");
@@ -462,11 +456,9 @@
                 return;
             }
 
-            // 3. Atualiza interface básica
             const display = document.getElementById('user-name-display');
             if (display) display.textContent = user.nome || "Usuário";
 
-            // 4. Configura o botão de Toggle do menu lateral
             const menuToggle = document.getElementById("menu-toggle");
             if(menuToggle){
                 menuToggle.onclick = (e) => {
@@ -475,7 +467,6 @@
                 };
             }
 
-            // 5. Inicia o carregamento dos módulos
             carregarAmbiente(user);
         });
     </script>

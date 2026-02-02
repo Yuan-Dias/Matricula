@@ -358,8 +358,21 @@ function getStatusBadge(tipo) {
     return map[tipo] || `<span class="badge bg-secondary rounded-pill">${tipo}</span>`;
 }
 
+// --- utils.js ---
+
 function gerarFeedbackStatusAluno(mediaAtual, notaRecuperacao, existeConfigRecuperacao, todasRegularesLancadas, mediaFinal) {
     const corte = 7.0; 
+
+    if (!todasRegularesLancadas) {
+        return `
+            <div class="alert alert-info m-0 rounded-0 border-0 border-bottom d-flex align-items-center">
+                <i class="fas fa-hourglass-half fs-1 me-3"></i>
+                <div>
+                    <h5 class="fw-bold mb-0">Em Andamento</h5>
+                    <div class="small">Aguardando o lançamento de todas as notas regulares para cálculo final. (Média atual considerando zeros: ${mediaFinal})</div>
+                </div>
+            </div>`;
+    }
     
     if (mediaFinal >= corte) {
         return `
@@ -378,7 +391,7 @@ function gerarFeedbackStatusAluno(mediaAtual, notaRecuperacao, existeConfigRecup
                 <i class="fas fa-exclamation-triangle fs-1 me-3"></i>
                 <div>
                     <h5 class="fw-bold mb-0">Em Recuperação</h5>
-                    <div class="small">Sua média regular ficou abaixo de 7.0. Necessário atingir 7.0 com a recuperação.</div>
+                    <div class="small">Sua média regular (${mediaAtual.toFixed(1)}) ficou abaixo de 7.0. Necessário realizar a recuperação.</div>
                 </div>
             </div>`;
     }
@@ -410,37 +423,54 @@ function utilsIsRecuperacao(nome) {
 }
 
 function utilsCalcularMedia(notasAluno, configuracoes) {
-    if (!notasAluno || !configuracoes || configuracoes.length === 0) return 0.0;
+    if (!configuracoes || configuracoes.length === 0) return 0.0;
+
+    const configsUnicas = configuracoes.filter((conf, index, self) =>
+        index === self.findIndex((c) => c.id === conf.id)
+    );
 
     const mapaNotas = {};
-    notasAluno.forEach(n => {
-        if (n.valor !== null && n.valor !== undefined && n.valor !== "") {
-            mapaNotas[n.idConfiguracao] = parseFloat(String(n.valor).replace(',', '.'));
-        }
-    });
+    if (notasAluno) {
+        notasAluno.forEach(n => {
+            if (n.valor !== null && n.valor !== undefined && n.valor !== "") {
+                mapaNotas[n.idConfiguracao] = parseFloat(String(n.valor).replace(',', '.'));
+            }
+        });
+    }
 
-    let somaPonderada = 0, somaPesos = 0, valorRec = null;
+    let somaPonderada = 0;
+    let somaPesos = 0;
+    let valorRec = null;
+    let todasRegularesLancadas = true; 
 
-    configuracoes.forEach(conf => {
+    configsUnicas.forEach(conf => {
         const nome = conf.descricaoNota || conf.nome || "";
-        const nota = mapaNotas[conf.id];
-
+        
         if (utilsIsRecuperacao(nome)) {
-            if (nota !== undefined) valorRec = nota;
-        } else if (nota !== undefined) {
+            if (mapaNotas[conf.id] !== undefined) {
+                valorRec = mapaNotas[conf.id];
+            }
+        } else {
             let peso = parseFloat(conf.peso);
             if(isNaN(peso)) peso = 1;
             
-            somaPonderada += nota * peso;
             somaPesos += peso;
+            
+            const nota = mapaNotas[conf.id];
+            
+            if (nota !== undefined) {
+                somaPonderada += nota * peso;
+            } else {
+                todasRegularesLancadas = false;
+            }
         }
     });
 
-    if (somaPesos === 0) return valorRec !== null ? valorRec : 0.0;
+    if (somaPesos === 0) return 0.0;
 
     let media = Math.round((somaPonderada / somaPesos) * 10) / 10;
 
-    if (media < 7.0 && valorRec !== null && valorRec > media) {
+    if (todasRegularesLancadas && media < 7.0 && valorRec !== null && valorRec > media) {
         media = Math.round(((media + valorRec) / 2) * 10) / 10;
     }
     
@@ -465,16 +495,10 @@ function utilsObterStatusAcademico(media, statusOuIsFinalizada, todasRegularesLa
         if (statusOuIsFinalizada === 'APROVADO') return { texto: 'Aprovado', classBadge: 'bg-success', corTexto: 'text-success' };
         if (statusOuIsFinalizada === 'REPROVADO') return { texto: 'Reprovado', classBadge: 'bg-danger', corTexto: 'text-danger' };
 
-        if (isFinalizada || temNotaRecuperacao) {
-            if (statusOuIsFinalizada === 'APROVADO') return { texto: 'Aprovado', classBadge: 'bg-success', corTexto: 'text-success' };
-            if (statusOuIsFinalizada === 'REPROVADO') return { texto: 'Reprovado', classBadge: 'bg-danger', corTexto: 'text-danger' };
-
-            const notaCorte = 7.0;
-
-            return valorMedia >= notaCorte 
-                ? { texto: 'Aprovado', classBadge: 'bg-success', corTexto: 'text-success' }
-                : { texto: 'Reprovado', classBadge: 'bg-danger', corTexto: 'text-danger' };
-        }
+        const notaCorte = 7.0;
+        return valorMedia >= notaCorte 
+            ? { texto: 'Aprovado', classBadge: 'bg-success', corTexto: 'text-success' }
+            : { texto: 'Reprovado', classBadge: 'bg-danger', corTexto: 'text-danger' };
     }
 
     if (todasRegularesLancadas) {
@@ -501,12 +525,15 @@ function utilsGerarBarraPesos(listaNotas) {
         return `<small class="text-muted fst-italic"><i class="fas fa-ban me-1"></i> Sem notas configuradas</small>`;
     }
 
+    const notasUnicas = listaNotas.filter((conf, index, self) =>
+        index === self.findIndex((c) => c.id === conf.id)
+    );
+
     const cores = ['#0ea5e9', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
     
-    const barras = listaNotas.map((nota, index) => {
+    const barras = notasUnicas.map((nota, index) => {
         const desc = nota.descricaoNota || nota.descricao || 'Nota';
         const peso = parseFloat(nota.peso || 0);
-        // Calcula largura relativa (assumindo soma total 10)
         const largura = peso > 0 ? (peso * 10) : 0; 
         const cor = cores[index % cores.length];
         
@@ -514,7 +541,7 @@ function utilsGerarBarraPesos(listaNotas) {
                     data-bs-toggle="tooltip" title="${desc}: Peso ${peso}"></div>`;
     }).join('');
 
-    const legendas = listaNotas.map((nota, index) => {
+    const legendas = notasUnicas.map((nota, index) => {
         const desc = nota.descricaoNota || nota.descricao || 'Nota';
         const peso = parseFloat(nota.peso || 0);
         const cor = cores[index % cores.length];

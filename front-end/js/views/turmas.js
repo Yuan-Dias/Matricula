@@ -123,21 +123,21 @@ async function profVerAlunos(idMateria, nomeMateria) {
         </div>`;
 
     try {
-        // Carrega dados da Matéria e Matrículas em paralelo
         const [materia, todasMatriculas] = await Promise.all([
             fetchAPI(`/materias/${idMateria}`),
             fetchAPI('/matriculas') 
         ]);
 
-        // Filtra alunos apenas desta matéria
         const alunosTurma = todasMatriculas.filter(m => m.idMateria === idMateria);
-
-        // Verifica se existem avaliações configuradas
-        const avaliacoes = materia.avaliacoes || [];
-        const temAvaliacoes = avaliacoes.length > 0;
+        
+        // Filtra para pegar apenas avaliações que contam para a média (ignora Recuperação)
+        const avaliacoesConfig = materia.avaliacoes || [];
+        const avaliacoesParaMedia = avaliacoesConfig.filter(av => av.descricaoNota !== 'Recuperação');
+        
+        const temAvaliacoes = avaliacoesConfig.length > 0;
         const estaEncerrada = materia.encerrada;
 
-        // BOTÕES DE AÇÃO NO HEADER
+        // ... (BOTOES DE AÇÃO - MANTIDO IGUAL) ...
         let botoesAcao = '';
         if (!estaEncerrada) {
             botoesAcao = `
@@ -152,8 +152,8 @@ async function profVerAlunos(idMateria, nomeMateria) {
             botoesAcao = `<span class="badge bg-danger fs-6 px-3 py-2"><i class="fas fa-lock me-2"></i>Turma Encerrada</span>`;
         }
 
-        // SE NÃO HOUVER AVALIAÇÕES CONFIGURADAS
         if (!temAvaliacoes) {
+            // ... (HTML DE SEM AVALIAÇÕES - MANTIDO IGUAL) ...
             appContent.innerHTML = `
                 <div class="container mt-4 fade-in">
                     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -162,40 +162,34 @@ async function profVerAlunos(idMateria, nomeMateria) {
                         </button>
                         <h3 class="fw-bold text-primary mb-0">${materia.nome}</h3>
                     </div>
-                    
                     <div class="card border-0 shadow-sm text-center py-5">
                         <div class="card-body">
                             <i class="fas fa-clipboard-list text-muted mb-3" style="font-size: 3rem;"></i>
                             <h4 class="fw-bold">Nenhuma avaliação configurada</h4>
-                            <p class="text-muted">Para lançar notas, você precisa primeiro definir quais avaliações (P1, P2, Trabalho, etc.) esta turma terá.</p>
-                            ${!estaEncerrada ? `
-                                <button class="btn btn-primary btn-lg mt-3" onclick="profAbrirModalConfiguracao(${idMateria})">
-                                    <i class="fas fa-plus-circle me-2"></i>Criar Configuração de Notas
-                                </button>
-                            ` : ''}
+                            <p class="text-muted">Configure as avaliações para começar.</p>
+                            ${!estaEncerrada ? `<button class="btn btn-primary btn-lg mt-3" onclick="profAbrirModalConfiguracao(${idMateria})"><i class="fas fa-plus-circle me-2"></i>Criar Configuração</button>` : ''}
                         </div>
                     </div>
-                    
                     <div id="modalContainer"></div>
                 </div>`;
             return;
         }
 
-        // CONSTRUÇÃO DA TABELA (Header Dinâmico)
-        const headersAvaliacoes = avaliacoes.map(av => 
+        // HEADER DA TABELA
+        const headersAvaliacoes = avaliacoesConfig.map(av => 
             `<th class="text-center" style="width: 120px;">
                 <div class="small fw-bold text-white">${av.descricaoNota}</div>
                 <div class="badge bg-light text-dark bg-opacity-75 border-0" style="font-size: 0.7rem;">Peso ${av.peso}</div>
             </th>`
         ).join('');
 
-        // CONSTRUÇÃO DAS LINHAS (Input de Notas)
+        // LINHAS DA TABELA
         const linhasTabela = alunosTurma.map(matricula => {
-            const colunasNotas = avaliacoes.map(config => {
+            
+            // 1. Gera as colunas de INPUT
+            const colunasNotas = avaliacoesConfig.map(config => {
                 const notaLancada = matricula.notas.find(n => n.idConfiguracao === config.id);
                 const valorNota = notaLancada ? notaLancada.valor : '';
-                
-                // Se encerrada, input desabilitado
                 const disabled = estaEncerrada ? 'disabled' : '';
 
                 return `
@@ -211,8 +205,37 @@ async function profVerAlunos(idMateria, nomeMateria) {
                 `;
             }).join('');
 
-            // Status e Média
-            const status = utilsObterStatusAcademico(matricula.mediaFinal, materia.encerrada);
+            // 2. CALCULA A MÉDIA VISUAL (Se a turma estiver aberta)
+            // Se fechada, usa a do banco. Se aberta, calcula na hora considerando 0 para vazios.
+            let mediaExibicao = 0;
+            
+            if (estaEncerrada) {
+                mediaExibicao = matricula.mediaFinal !== null ? matricula.mediaFinal : 0;
+            } else {
+                let somaPonderada = 0;
+                let somaPesos = 0; // Deve ser 10, mas calculamos por segurança
+
+                avaliacoesParaMedia.forEach(conf => {
+                    const notaObj = matricula.notas.find(n => n.idConfiguracao === conf.id);
+                    // IMPORTANTE: Se não tem nota, considera 0
+                    const valor = notaObj ? parseFloat(notaObj.valor) : 0; 
+                    
+                    somaPonderada += valor * conf.peso;
+                    somaPesos += conf.peso;
+                });
+
+                // Evita divisão por zero
+                mediaExibicao = somaPesos > 0 ? (somaPonderada / somaPesos) : 0;
+                // Normaliza para base 10 se a soma dos pesos for 10 (o padrão)
+                // Se sua lógica de backend divide pela soma dos pesos, a linha acima já está certa.
+                // Se a soma dos pesos é SEMPRE 10, a média é direta.
+            }
+            
+            const mediaFormatada = mediaExibicao.toFixed(1);
+            
+            // Status Acadêmico (Usando função global ou lógica simples)
+            // Assumindo média 7.0
+            const status = utilsObterStatusAcademico(mediaExibicao, estaEncerrada);
 
             return `
                 <tr>
@@ -222,7 +245,7 @@ async function profVerAlunos(idMateria, nomeMateria) {
                     </td>
                     ${colunasNotas}
                     <td class="text-center align-middle fw-bold fs-5 text-dark bg-light border-start">
-                        ${matricula.mediaFinal !== null && matricula.mediaFinal !== undefined ? matricula.mediaFinal.toFixed(1) : '-'}
+                        ${mediaFormatada}
                     </td>
                     <td class="text-center align-middle">
                         <span class="badge ${status.classBadge}">${status.texto}</span>
@@ -231,7 +254,7 @@ async function profVerAlunos(idMateria, nomeMateria) {
             `;
         }).join('');
 
-        // RENDERIZAÇÃO FINAL
+        // ... (RENDERIZAÇÃO FINAL DO HTML - MANTIDO IGUAL) ...
         appContent.innerHTML = `
             <div class="container-fluid fade-in pb-5">
                 <div class="d-flex justify-content-between align-items-center mb-4 mt-2">
@@ -264,7 +287,7 @@ async function profVerAlunos(idMateria, nomeMateria) {
                                 </tr>
                             </thead>
                             <tbody class="border-top-0">
-                                ${alunosTurma.length > 0 ? linhasTabela : '<tr><td colspan="15" class="text-center py-5 text-muted">Nenhum aluno matriculado nesta disciplina.</td></tr>'}
+                                ${alunosTurma.length > 0 ? linhasTabela : '<tr><td colspan="15" class="text-center py-5 text-muted">Nenhum aluno matriculado.</td></tr>'}
                             </tbody>
                         </table>
                     </div>
@@ -276,7 +299,6 @@ async function profVerAlunos(idMateria, nomeMateria) {
     } catch (error) {
         console.error('Erro ao carregar diário:', error);
         mostrarToast('Erro ao carregar dados da turma.', 'error');
-        appContent.innerHTML = `<div class="alert alert-danger m-4">Erro de conexão: ${error.message}</div>`;
     }
 }
 
@@ -331,20 +353,14 @@ async function profSalvarNota(idMatricula, idConfiguracao, inputElement) {
 // ==================================================================================
 
 async function profAbrirModalConfiguracao(idMateria) {
-    // Busca dados atuais da matéria para preencher o modal
     let materia;
     try {
         materia = await fetchAPI(`/materias/${idMateria}`);
     } catch (e) {
-        console.error(e);
         materia = { avaliacoes: [] };
     }
 
-    // Separa avaliações normais da Recuperação (se já existir)
-    // Assumimos que a recuperação é identificada pelo nome ou é a última se não tiver nome específico
-    // Aqui, vamos tratar "Recuperação" como um campo fixo visualmente.
     let avaliacoesNormais = materia.avaliacoes ? materia.avaliacoes.filter(a => a.descricaoNota !== 'Recuperação') : [];
-    let recupExistente = materia.avaliacoes ? materia.avaliacoes.find(a => a.descricaoNota === 'Recuperação') : null;
 
     const modalHtml = `
     <div class="modal fade" id="modalConfigAvaliacao" tabindex="-1" aria-hidden="true">
@@ -404,33 +420,32 @@ async function profAbrirModalConfiguracao(idMateria) {
     const container = document.getElementById('listaAvaliacoesContainer');
     container.innerHTML = '';
 
-    // Popula as avaliações existentes ou cria padrão
-    if (avaliacoesNormais.length > 0) {
-        avaliacoesNormais.forEach(av => profAdicionarLinhaAvaliacao(av.descricaoNota, av.peso));
+if (avaliacoesNormais.length > 0) {
+        avaliacoesNormais.forEach(av => profAdicionarLinhaAvaliacao(av.descricaoNota, av.peso, av.id));
     } else {
         profAdicionarLinhaAvaliacao('P1', 5);
         profAdicionarLinhaAvaliacao('P2', 5);
     }
 
-    // Atualiza a soma inicial
     profAtualizarSomaPesos();
-
-    // Inicializa o Drag and Drop do Utils
     utilsConfigurarDragDrop(container, '.linha-avaliacao');
 
     const modal = new bootstrap.Modal(document.getElementById('modalConfigAvaliacao'));
     modal.show();
 }
 
-function profAdicionarLinhaAvaliacao(nome = '', peso = '') {
+function profAdicionarLinhaAvaliacao(nome = '', peso = '', id = null) {
     const container = document.getElementById('listaAvaliacoesContainer');
     const div = document.createElement('div');
     
-    // Classes para Drag and Drop e Estilização
     div.className = 'list-group-item list-group-item-action d-flex align-items-center p-2 linha-avaliacao draggable-item';
     div.setAttribute('draggable', 'true');
     
+    const idValue = id ? id : '';
+
     div.innerHTML = `
+        <input type="hidden" class="id-av" value="${idValue}">
+        
         <div class="cursor-grab text-muted me-3 handle" style="cursor: grab;">
             <i class="fas fa-grip-vertical"></i>
         </div>
@@ -447,7 +462,6 @@ function profAdicionarLinhaAvaliacao(nome = '', peso = '') {
         </button>
     `;
 
-    // Eventos de Drag Específicos para o Elemento (Visual)
     div.addEventListener('dragstart', () => div.classList.add('dragging', 'opacity-50'));
     div.addEventListener('dragend', () => div.classList.remove('dragging', 'opacity-50'));
 
@@ -488,13 +502,8 @@ function profAtualizarSomaPesos() {
 async function profSalvarConfiguracao(idMateria) {
     const soma = profAtualizarSomaPesos();
 
-    // 1. Validação de Soma
     if (soma !== 10) {
         mostrarToast(`A soma dos pesos deve ser exatamente 10. Atual: ${soma}`, 'error');
-        // Efeito visual de erro
-        const alertBox = document.getElementById('alertPeso');
-        alertBox.classList.add('animate__animated', 'animate__shakeX'); // Requer animate.css ou use JS simples
-        setTimeout(() => alertBox.classList.remove('animate__animated', 'animate__shakeX'), 1000);
         return;
     }
 
@@ -502,18 +511,21 @@ async function profSalvarConfiguracao(idMateria) {
     const avaliacoes = [];
     let erroCampos = false;
 
-    // 2. Coleta dados da lista reordenável
     linhas.forEach((linha, index) => {
+        // CORREÇÃO: Pega o ID
+        const idVal = linha.querySelector('.id-av').value;
         const nome = linha.querySelector('.nome-av').value.trim();
         const peso = parseFloat(linha.querySelector('.peso-av').value);
 
         if (!nome || isNaN(peso)) {
             erroCampos = true;
         }
+        
         avaliacoes.push({
+            id: idVal ? parseInt(idVal) : null, // Envia ID se existir
             descricaoNota: nome,
             peso: peso,
-            ordem: index // Salva a ordem visual
+            ordem: index 
         });
     });
 
@@ -522,11 +534,9 @@ async function profSalvarConfiguracao(idMateria) {
         return;
     }
 
-    // 3. Adiciona a Recuperação Fixa (Sempre por último)
-    // A recuperação geralmente não entra na soma de 10, ela substitui. Peso 0 ou null.
     avaliacoes.push({
         descricaoNota: 'Recuperação',
-        peso: 0, // Ou null, dependendo do backend
+        peso: 0, 
         ordem: 999
     });
 

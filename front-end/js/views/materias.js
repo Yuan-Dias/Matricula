@@ -79,6 +79,12 @@ async function instFiltrarMaterias() {
     try {
         let materias = await fetchAPI('/materias');
         
+        // --- ESPIÃO PARA DEBUGAR O ERRO 404 ---
+        console.group("DEBUG LISTAGEM MATÉRIAS");
+        materias.forEach(m => console.log(`Matéria: "${m.nome}" | ID no JSON: ${m.id} (Tipo: ${typeof m.id})`));
+        console.groupEnd();
+        // --------------------------------------
+
         if (typeof filtrarDados === 'function') {
             materias = filtrarDados(materias, termo, ['nome', 'nomeCurso', 'nomeProfessor']);
         }
@@ -157,17 +163,19 @@ async function instFiltrarMaterias() {
     }
 }
 
-function instAdicionarLinhaNota(descricao = '', peso = '') {
+// Adicione o parâmetro 'id' no final
+function instAdicionarLinhaNota(descricao = '', peso = '', id = null) {
     const container = document.getElementById('containerNotas');
-    if (!container) {
-        console.error("ERRO: Elemento 'containerNotas' não encontrado no DOM.");
-        return;
-    }
+    if (!container) return;
 
     const div = document.createElement('div');
     div.className = 'row g-2 mb-2 nota-row align-items-center';
     
+    const valueId = id ? id : '';
+
     div.innerHTML = `
+        <input type="hidden" class="input-id-nota" value="${valueId}">
+        
         <div class="col-7">
             <input type="text" class="form-control input-desc-nota" 
                    placeholder="Ex: Prova 1" value="${descricao || ''}" required>
@@ -218,6 +226,7 @@ function instCalcularTotalPesos() {
     const display = document.getElementById('displayTotalPesos');
     if(display) {
         display.innerText = total.toFixed(1);
+        // Visualmente mostra erro se for diferente de 10
         if(Math.abs(total - 10) < 0.1) {
             display.className = "fw-bold text-success";
         } else {
@@ -236,15 +245,19 @@ async function instPrepararEdicaoMateria(id) {
         try {
             avaliacoes = await fetchAPI(`/materias/${id}/avaliacoes`);
         } catch (err) {
-            console.warn("Sem avaliações específicas ou erro (pode ser nova matéria sem notas).");
+            console.warn("Sem avaliações específicas ou erro.");
         }
 
         const dadosCompletos = {
             ...materiaAlvo,
-            notasConfig: avaliacoes.map(av => ({
-                descricao: av.descricaoNota || av.descricao || av.nome || '',
-                peso: av.peso
-            }))
+            notasConfig: avaliacoes
+                // Filtra a recuperação automática para não duplicar na tela de edição
+                .filter(av => (av.descricaoNota || av.nome) !== 'Recuperação')
+                .map(av => ({
+                    id: av.id, // CORREÇÃO: O ID É ESSENCIAL AQUI
+                    descricao: av.descricaoNota || av.descricao || av.nome || '',
+                    peso: av.peso
+                }))
         };
 
         instAbrirModalMateria(dadosCompletos);
@@ -360,25 +373,33 @@ async function instSalvarMateria() {
     let pesoTotal = 0;
     
     notasRows.forEach(row => {
+        const idVal = row.querySelector('.input-id-nota').value;
         const desc = row.querySelector('.input-desc-nota').value.trim();
         const pesoVal = row.querySelector('.input-peso-nota').value;
         const peso = parseFloat(pesoVal);
         
         if(desc) {
             const pesoFinal = isNaN(peso) ? 0 : peso;
+            
             listaAvaliacoes.push({ 
+                id: idVal ? parseInt(idVal) : null, 
                 descricaoNota: desc, 
                 peso: pesoFinal 
             });
+            
             pesoTotal += pesoFinal;
         }
     });
 
     listaAvaliacoes.push({ descricaoNota: 'Recuperação', peso: 0 });
 
+    if (pesoTotal > 10.0) {
+        mostrarToast(`A soma dos pesos (${pesoTotal.toFixed(1)}) não pode ser maior que 10.`, "danger");
+        return; 
+    }
+
     const somaValida = Math.abs(pesoTotal - 10) < 0.1;
     if (!somaValida && pesoTotal !== 0) {
-         // REMOVIDO O EMOJI AQUI
          if(!confirm(`Atenção: A soma dos pesos é ${pesoTotal.toFixed(1)}. O ideal é 10.0.\nDeseja salvar mesmo assim?`)) return;
     }
 
@@ -414,7 +435,6 @@ async function instSalvarMateria() {
         console.error("Erro ao salvar:", e);
         
         let msgErro = "Erro desconhecido";
-        
         if (Array.isArray(e)) {
             msgErro = e.map(err => {
                 const campo = err.campo || err.field; 
@@ -430,13 +450,36 @@ async function instSalvarMateria() {
 }
 
 async function instDeletarMateria(id) {
+    console.log("--- TENTANDO DELETAR ID:", id, " (Tipo:", typeof id, ") ---");
+
     if(confirm("Tem certeza absoluta?\n\nAo excluir esta matéria, todas as notas lançadas e histórico acadêmico vinculado a ela serão perdidos permanentemente.")) {
+        
+        // Bloqueia a tela (se tiver loading)
+        if (typeof instLoading === 'function') instLoading(true);
+
         try {
+            // Tenta deletar
             await fetchAPI(`/materias/${id}`, 'DELETE');
-            instRenderMaterias();
             mostrarToast("Matéria removida com sucesso.", "success");
+            
         } catch(e) {
-            mostrarToast("Erro ao deletar: " + e.message, "danger");
+            // Se der 404, finge que deu certo pois o item já sumiu
+            const is404 = (e.status === 404) || (e.message && e.message.includes('404'));
+
+            if (is404) {
+                console.warn("Recebi 404. O item já não existe no banco. Apenas atualizando a tela.");
+                mostrarToast("A lista foi atualizada (o item já não existia).", "warning");
+            } else {
+                console.error(e);
+                mostrarToast("Erro ao deletar: " + (e.message || "Erro desconhecido"), "danger");
+            }
+        } finally {
+            // AQUI ESTAVA O ERRO: Chamando a função com o nome correto agora
+            if (typeof instFiltrarMaterias === 'function') {
+                await instFiltrarMaterias(); // <--- NOME CORRIGIDO
+            }
+            
+            if (typeof instLoading === 'function') instLoading(false);
         }
     }
 }

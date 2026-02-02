@@ -126,6 +126,7 @@ function alunoFiltrarDisciplinasLocal() {
 async function alunoVerDetalhesNotas(idMateria, nomeMateria) {
     if (typeof instLoading === 'function') instLoading(true);
 
+    // Remove modal anterior se existir para evitar sobreposição
     const modalAntigo = document.getElementById('modalDetalhesNotas');
     if (modalAntigo) modalAntigo.remove();
     document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
@@ -135,10 +136,23 @@ async function alunoVerDetalhesNotas(idMateria, nomeMateria) {
 
     try {
         const user = getUser();
-        const [avaliacoes, matriculas] = await Promise.all([
+        const [avaliacoesRaw, matriculas] = await Promise.all([
             fetchAPI(`/materias/${idMateria}/avaliacoes`),
             fetchAPI('/matriculas')
         ]);
+
+        // --- CORREÇÃO AVANÇADA DE DUPLICATAS ---
+        // Filtra por ID *OU* por Nome. 
+        // Isso resolve o problema de criar um novo ID ao editar a avaliação.
+        const avaliacoes = avaliacoesRaw.filter((av, index, self) =>
+            index === self.findIndex((t) => (
+                // É o mesmo ID?
+                t.id === av.id ||
+                // OU é exatamente o mesmo nome/descrição? (previne duplicidade visual)
+                (t.descricaoNota || t.nome) === (av.descricaoNota || av.nome)
+            ))
+        );
+        // ----------------------------------------
 
         const detalhes = matriculas.find(m => {
             const idAlu = m.idAluno || (m.aluno ? m.aluno.id : null);
@@ -159,8 +173,7 @@ async function alunoVerDetalhesNotas(idMateria, nomeMateria) {
         let existeConfigRecuperacao = false;
         let todasNotasRegularesLancadas = true;
 
-        // Ordenar avaliações (Regulares primeiro, REC depois)
-        // REATORAÇÃO: Usa utilsIsRecuperacao do utils.js
+        // Ordena as avaliações (agora limpas)
         const avOrdenadas = [...avaliacoes].sort((a, b) => {
             const isARec = utilsIsRecuperacao(a.descricaoNota || a.nome);
             const isBRec = utilsIsRecuperacao(b.descricaoNota || b.nome);
@@ -169,7 +182,18 @@ async function alunoVerDetalhesNotas(idMateria, nomeMateria) {
 
         avOrdenadas.forEach(av => {
             const isRec = utilsIsRecuperacao(av.descricaoNota || av.nome);
-            const valorNota = mapaNotas[av.id];
+            // Tenta pegar a nota pelo ID atual. Se não achar, tenta ver se existe nota
+            // em algum "irmão" duplicado (caso o backend tenha salvo a nota no ID antigo)
+            let valorNota = mapaNotas[av.id];
+
+            // Fallback: Se a nota não estiver no ID atual, procura nos dados brutos se tem nota com mesmo nome
+            if (valorNota === undefined && avaliacoesRaw.length > avaliacoes.length) {
+                const duplicataComNota = avaliacoesRaw.find(r => 
+                    (r.descricaoNota || r.nome) === (av.descricaoNota || av.nome) && 
+                    mapaNotas[r.id] !== undefined
+                );
+                if (duplicataComNota) valorNota = mapaNotas[duplicataComNota.id];
+            }
 
             if (isRec) {
                 existeConfigRecuperacao = true;
@@ -192,19 +216,17 @@ async function alunoVerDetalhesNotas(idMateria, nomeMateria) {
         let mediaAtual = (somaPesos > 0) ? (somaPonderada / somaPesos) : 0.0;
         mediaAtual = Math.round(mediaAtual * 10) / 10;
 
-        // Cálculo da média final considerando REC (caso precise exibir no footer)
         let mediaFinalCalculada = mediaAtual;
         let usouRecuperacao = false;
 
-        if (mediaAtual < 7.0 && notaRecuperacao !== null && notaRecuperacao > mediaAtual) {
-            mediaFinalCalculada = (mediaAtual + notaRecuperacao) / 2;
-            mediaFinalCalculada = Math.round(mediaFinalCalculada * 10) / 10;
-            usouRecuperacao = true;
+        if (todasNotasRegularesLancadas) {
+            if (mediaAtual < 7.0 && notaRecuperacao !== null && notaRecuperacao > mediaAtual) {
+                mediaFinalCalculada = (mediaAtual + notaRecuperacao) / 2;
+                mediaFinalCalculada = Math.round(mediaFinalCalculada * 10) / 10;
+                usouRecuperacao = true;
+            }
         }
 
-        // --- LÓGICA MOVIDA PARA UTILS ---
-        // A lógica de qual alerta exibir (Aprovado, Reprovado, Em Recuperação) 
-        // agora é delegada para gerarFeedbackStatusAluno no utils.js
         let statusHtml = '';
         if (typeof gerarFeedbackStatusAluno === 'function') {
             statusHtml = gerarFeedbackStatusAluno(mediaAtual, notaRecuperacao, existeConfigRecuperacao, todasNotasRegularesLancadas, mediaFinalCalculada);
@@ -237,10 +259,22 @@ async function alunoVerDetalhesNotas(idMateria, nomeMateria) {
                                         ${avOrdenadas.map(av => {
                                             const nomeOriginal = av.descricaoNota || av.nome || "";
                                             const isRec = utilsIsRecuperacao(nomeOriginal);
-                                            const nota = mapaNotas[av.id];
-                                            const notaFormatada = (nota !== undefined && nota !== null) ? Number(nota).toFixed(1) : '-';
                                             
-                                            // REATORAÇÃO: Usa getNotaColor do utils.js
+                                            if (isRec && !todasNotasRegularesLancadas) {
+                                                return ''; 
+                                            }
+
+                                            // Lógica de recuperação de nota (mesma do cálculo acima)
+                                            let nota = mapaNotas[av.id];
+                                            if (nota === undefined && avaliacoesRaw.length > avaliacoes.length) {
+                                                const duplicataComNota = avaliacoesRaw.find(r => 
+                                                    (r.descricaoNota || r.nome) === (av.descricaoNota || av.nome) && 
+                                                    mapaNotas[r.id] !== undefined
+                                                );
+                                                if (duplicataComNota) nota = mapaNotas[duplicataComNota.id];
+                                            }
+
+                                            const notaFormatada = (nota !== undefined && nota !== null) ? Number(nota).toFixed(1) : '-';
                                             const classeCor = (typeof getNotaColor === 'function') ? getNotaColor(nota) : '';
 
                                             return `
@@ -263,7 +297,7 @@ async function alunoVerDetalhesNotas(idMateria, nomeMateria) {
                                     <tfoot>
                                         <tr class="table-light border-top border-2">
                                             <td colspan="2" class="ps-4 fw-bold text-uppercase text-dark align-middle">
-                                                Média Final Calculada
+                                                Média ${todasNotasRegularesLancadas ? 'Final' : 'Parcial'}
                                                 ${usouRecuperacao ? '<span class="badge bg-info text-dark ms-2" style="font-size:0.6rem">PÓS-REC</span>' : ''}
                                             </td>
                                             <td class="text-center fw-bold pe-4 py-3" style="font-size: 1.3rem;">

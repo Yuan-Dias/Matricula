@@ -1,8 +1,21 @@
 package br.com.matricula.model;
 
-import br.com.matricula.dto.DadosConfiguracao; 
+import java.util.ArrayList; 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.persistence.*;
+
+import br.com.matricula.dto.DadosConfiguracao; // <--- Importante
+import jakarta.persistence.CascadeType;      // <--- Importante
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "configuracao_avaliacao")
@@ -22,6 +35,9 @@ public class ConfiguracaoAvaliacao {
     @ManyToOne
     @JoinColumn(name = "materia_id", nullable = false)
     private Materia materia;
+
+    @OneToMany(mappedBy = "configuracao", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Nota> notas = new ArrayList<>();
 
     // --- CONSTRUTORES ---
 
@@ -72,5 +88,13 @@ public class ConfiguracaoAvaliacao {
 
     public void setMateria(Materia materia) {
         this.materia = materia;
-    }   
+    }
+    
+    public List<Nota> getNotas() {
+        return notas;
+    }
+
+    public void setNotas(List<Nota> notas) {
+        this.notas = notas;
+    }
 }
